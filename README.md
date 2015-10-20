@@ -396,6 +396,84 @@ Response::init([
 ]);
 ```
 
+模板模式
+
+直接输出模板文件
+
+```php
+Response::render('demo',[
+    'myname' => 'nixuehan'
+]);
+
+// __myname 这个变量进行 html实体化。 防xss
+Response::render('demo',[
+    '__myname' => 'nixuehan'
+]);
+```
+
+我们用模板模式来实现前面的布局模式的效果
+
+1\. 创建 f1.tpl.php 模板
+
+2\. 设置访问的路由和控制器
+
+```php
+Koala::route([
+    '/f1' => 'demo->f1'
+]);
+```
+
+3\. 在控制器类里写方法
+
+```php
+public function f1() {
+    Response::render('f1');
+}
+```
+
+4\. 然后模板里面调用
+
+```php
+<?php use koala\Response?>
+
+<?php Response::fragments('demo->f1')?>
+
+我是<?=$myname?>
+```
+
+
+输出json
+
+```php
+Response::json(['myname' => 'yeziqing','age' => 18]);
+```
+
+跳转
+
+```php
+Response::redirect('/test');
+```
+
+一般输出
+
+```php
+Response::write('wakaka');
+```
+
+#会话 class Session
+
+```php
+$session = new Session;
+$session->start(function(){
+    ini_set('session.save_hander', 'memcache');
+    ini_set('session.save_path', 'tcp://127.0.0.1:11211');
+});
+
+
+$session->get('xxoo');
+
+$session->set('xxoo','jjyy');
+```
 
 
 
