@@ -229,7 +229,7 @@ Koala::after('go',function(){
 });
 ```
 
-#配置文件
+#配置文件 class Config
 
 加载配置文件
 
@@ -261,7 +261,7 @@ Config::load("database.php");
 Config::load("default.php");
 ```
 
-获取配置选项
+获取配置选项 
 
 ```php
 $host = Config::get('host');
@@ -275,7 +275,7 @@ $conf = Config::get();
 Config::set('salt','asdfwerwqe');
 ```
 
-#共享变量
+#共享变量 class G
 
 模块间传递变量
 
@@ -293,7 +293,7 @@ G::get();
 G::get('member_age');
 ```
 
-# GET 、 POST  类 Request
+# GET 、 POST  class Request
 
 做了基本防SQL注入。初始类变量类型很重要，因为最后变量类型就是初始化时候定的。
 
@@ -330,9 +330,11 @@ $get = Request::get();
 $post = Request::post();
 ```
 
-#安全过滤
+#安全过滤  class Security
 
-主要两个方法。一个是针对sql 处理的。
+主要两个方法
+
+针对sql处理的
 
 ```php
 $get = Security::sqlVar($access_token);
@@ -343,7 +345,7 @@ $get = Security::sqlVar([
 ]);
 ```
 
-一个是针对 模板输出的
+针对模板输出的
 
 ```php
 $content = Security::htmlVar($content);
