@@ -51,7 +51,7 @@ use koala\Koala;
 ```
 
 
-然后定义路由和控制器的映射关系： '网站路径' => '控制器类名->类方法'
+然后定义路由和控制器的映射关系
 
 ```php
 Koala::route([
@@ -64,3 +64,22 @@ Koala::route([
 ```
 Koala::go();
 ```
+
+#路由
+
+路由分两部分，url地址和它所对应的控制器方法。url支持正则。
+
+'url' => '控制器的类名->类方法'
+
+```php
+Koala::route([
+    '/' => 'demo->index',
+    '/test' => 'demo->test1',
+    '/admin/member' => 'admin/member->test1',
+    '/test/(?P<doubi>[0-9]+)' => 'demo->test2'
+]);
+```
+
+
+
+
