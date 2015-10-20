@@ -293,7 +293,7 @@ G::get();
 G::get('member_age');
 ```
 
-# GET 、 POST  class Request
+# GET、POST请求  class Request
 
 做了基本防SQL注入。初始类变量类型很重要，因为最后变量类型就是初始化时候定的。
 
@@ -350,6 +350,53 @@ $get = Security::sqlVar([
 ```php
 $content = Security::htmlVar($content);
 ```
+
+#模板  class Response
+
+内置了一个简单的php模板。支持两种方式。
+
+模板布局模式
+
+1\. 新建一个母布局  默认名字 : main.layout.php    子布局默认变量名: $layout_contents 存放的是 子布局的内容。
+
+```php
+我是头罗
+<?=$layout_contents?>
+我是尾巴
+```
+
+2\. 在新建一个子布局  demo.tpl.php
+
+```php
+我是<?=$myname?>
+```
+
+3\. 在逻辑里输出
+
+```php
+Response::layout('demo',[
+    'myname' => 'nixuehan'
+]);
+```
+
+最后输出
+
+```php
+我是头罗
+我是nixuehan
+我是尾巴
+```
+
+想改变默认的母布局文件名或子布局的内容变量名。可以这样做
+
+```php
+Response::init([
+    'layout' => 'base',
+    'layout_contents' => 'layout_var'
+]);
+```
+
+
 
 
 
