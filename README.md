@@ -14,7 +14,6 @@ Koala::route([
 ]);
 
 Koala::go();
-
 ```
 
 # php版本要求
@@ -28,7 +27,7 @@ MIT. 随便拿去玩
 
 #如何运行起来
 
-1\. nginx 下载、安装、配置~ 这些我不想说了。贴个配置吧。 
+1\. nginx 下载、安装、配置~ 这些我不想说了。。 
 
 
 2\. 配置nginx 。
@@ -39,7 +38,6 @@ server {
         try_files $uri $uri/ /index.php;
     }
 }
-
 ```
 
 3\. 创建一个入口文件  `index.php` 
@@ -48,28 +46,21 @@ server {
 首先引入 koala 框架
 
 ```php
-
 require 'koala.php';
 use koala\Koala;
-
 ```
 
 
-然后定义路由和控制器的映射关系:
-
-'网站路径' => '控制器类名->类方法'
+然后定义路由和控制器的映射关系： '网站路径' => '控制器类名->类方法'
 
 ```php
-
 Koala::route([
     '/' => 'demo->test',
 ]);
-
 ```
 
 最后运行这个框架
 
 ```
 Koala::go();
-
 ```
