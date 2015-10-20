@@ -26,15 +26,14 @@ class Koala{
 
         set_exception_handler(function($e){
 
-            $msg = sprintf('<h1>500 Internal Server Error</h1>'.
+            $msg = sprintf('<h1>Koala Error</h1>'.
                     '<h3>%s (%s)</h3>'.
                     '<pre>%s</pre>',
                     $e->getMessage(),
                     $e->getCode(),
                     $e->getTraceAsString()
                 );
-            echo($msg);
-            exit;
+            Response::halt(500,$msg);
         });
 
         unset($_REQUEST);
@@ -66,7 +65,7 @@ class Koala{
             } 
         }
 
-        self::throwing('notFound','Can not find the controller');
+        self::throwing('koalaError','Can not find the controller');
     }
 
     public static function throwing($t,$msg) {
@@ -723,13 +722,13 @@ class Mysql {
         if(is_object($this->db[$server])) {
             return $this->db[$server];
         }
-        koala::throwing('koalaError','Database connection does not exist');
+        koala::throwing('mysqlError','Database connection does not exist');
     }
 
     public function getConnection(Array $opt) {
         $_db = @new \mysqli($opt['host'],$opt['user'],$opt['passwd']);
         if (mysqli_connect_errno()) {
-            koala::throwing('koalaError','database connect error!');
+            koala::throwing('mysqlError','database connect error!');
         }
         
         $_db->set_charset($opt['charset']);
@@ -739,7 +738,7 @@ class Mysql {
     
     public function selectDb($_db){
         if(!$this->db()->select_db($_db)){
-            koala::throwing('koalaError',sprintf("%s don't exist",$_db));
+            koala::throwing('mysqlError',sprintf("%s don't exist",$_db));
         }
     }
 
@@ -752,7 +751,7 @@ class Mysql {
         }
 
         if(!($result = $this->db()->query($sql))){
-            koala::throwing('koalaError',$this->db()->error);
+            koala::throwing('sqlError',$this->db()->error);
         }
         return $result;
     }
@@ -812,7 +811,7 @@ class Mysql {
     //重新选择数据库
     public function change($dbName) {
         if($this->_db_identify != 'default'){
-            koala::throwing('koalaError',"Don't allow change");
+            koala::throwing('sqlError',"Don't allow change");
         }
         $this->selectDb($dbName);
         return $this;
@@ -923,7 +922,7 @@ class Mysql {
 
     private function __isThereWhere() {
         if(!$this->_where){
-            koala::throwing('koalaError','皇上~您忘记写 sql的条件了: where');
+            koala::throwing('sqlError','皇上~您忘记写 sql的条件了: where');
         }
     }
 
