@@ -67,7 +67,7 @@ Koala::go();
 
 #路由
 
-路由分两部分，url地址和它所对应的控制器方法。url支持正则。
+路由分两部分，url地址和它所对应的控制器方法。url支持正则。路由规则建议用独立的文件 比如 route.php 来管理。
 
 'url' => '控制器的类名->类方法'
 
@@ -79,6 +79,61 @@ Koala::route([
     '/test/(?P<doubi>[0-9]+)' => 'demo->test2'
 ]);
 ```
+
+#控制器
+
+路由对应的就是控制器。那么我们看下控制器是怎么写的，就拿上面的 两个路由  '/test' 和 '/admin/member' 做为例子
+
+控制器默认目录是 controller。 可以通过下面方式进行一些设置。
+
+1
+
+```php
+Koala::go([
+    'controller_dir' => 'mygod',  //控制器目录
+    'view_dir' 		 => '模板目录', //模板目录
+    'online'		 => '运行模式', // true or false 
+]);
+
+```
+
+'/test' 的控制器。 路径在 controller/demo.php  注意：控制器文件名也就是类名。
+
+```php
+namespace controller;
+use koala\Response;
+
+class Demo{
+
+    public function index() {
+        Response::write('index');
+    }
+
+    public function test1() {
+        Response::write('test1');
+    }
+
+    public function test2($age) {
+        Response::write('test2' . $age);
+    }
+}
+```
+
+'/admin/member' 的控制器。 路径在 controller/admin/member.php
+
+```php
+namespace controller\admin;
+use koala\Response;
+
+class Member{
+
+    public function signin() {
+        Response::write('signin');
+    }
+}
+```
+
+
 
 
 
