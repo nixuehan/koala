@@ -672,3 +672,11 @@ $db->query("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
 $db->commit();
 ```
 
+#cli
+
+这很简单一样的道理。在服务器上
+
+```php
+php -f index.php /test 
+```
+走的是 '/test' 路由
