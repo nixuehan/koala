@@ -537,7 +537,7 @@ $session = O::instance('\module\Company');
 ```php
 Koala::init(function(){
 
-    Database::getConnection('write',function(){
+    Database::getConnection('writable',function(){
         return new Mysql([
             'host' => Config::get('host'),
             'user' => Config::get('user'),
@@ -547,7 +547,7 @@ Koala::init(function(){
         ]);
     });
 
-    Database::getConnection('read',function(){
+    Database::getConnection('readable',function(){
         return new Mysql([
             'host' => Config::get('host'),
             'user' => Config::get('user'),
