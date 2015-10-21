@@ -648,7 +648,7 @@ $this->db('readable')->table('forms')
                  ->find();
 ```
 
-遇到复杂的SQL 就不适合ORM了
+遇到复杂的SQL 就不适合ORM了。 ps: 记得需要自己防sql注入
 
 ```php
 Database::writable()->query("INSERT INTO forms VALUES('a','b')");
