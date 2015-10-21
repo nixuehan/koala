@@ -475,8 +475,39 @@ $session->get('xxoo');
 $session->set('xxoo','jjyy');
 ```
 
+#数据模块
 
+一般我们是不会在控制器里面写数据库操作逻辑的。推荐这样
 
+在 module 目录里建一个数据模块文件。 注意: 文件名和类名要相同
+```php
+namespace module;
+
+use koala\Config;
+use koala\Module;
+
+class Company extends Module{
+
+    public function authorization($access_token) {
+      return $this->db()->table('company')
+                             ->where("access_token='%s'",$access_token)
+                             ->findOne();
+      
+    }
+}
+```
+
+然后我们就可以在控制器里调用，不需要 提前include 数据模块文件。 ps:其他任何符合这样规则的类文件，都可以这样直接调用
+
+```php
+$company = new \module\company();
+```
+
+但如果能单例那更好哦。所以，我们一般这样用。这样永远只有一个实例
+
+```php
+$session = O::instance('\module\Company');
+```
 
 
 

@@ -1,11 +1,17 @@
 <?php
 namespace koala;
 
+class C{
+    const DEV = 'dev'; 
+}
+
 class Koala{
     private static $_route = []; //路由规则
     private static $_env = []; //环境变量
     private static $_map = []; //打点
     private static $_filter = [];
+    private static $_anchor_before = [];
+    private static $_anchor_after = [];
 
     private function __construct() {}
     private function __destruct() {}
@@ -17,12 +23,25 @@ class Koala{
 
     public static  function go(Array $config=[]) {
 
-        $config['controller_dir'] = isset($config['controller_dir']) ? $config['controller_dir'] : '';
-        self::$_env['controller_dir'] = empty($config['controller_dir']) ? 'controller' : $config['controller_dir'];
+        self::$_env['root_dir'] = !isset($config['root_dir']) ? '' : $config['root_dir'];
+        self::$_env['controller_dir'] = !isset($config['controller_dir']) ? 'controller' : $config['controller_dir'];
         self::$_env['cli'] = PHP_SAPI === 'cli' ? true : false; //是否命令行
         self::$_env['request_method'] = isset($_SERVER['REQUEST_METHOD']) && !empty($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
         self::$_env['view_dir'] = isset($config['view_dir']) ? $config['view_dir'] : 'views';
-        self::$_env['online'] = isset($config['online']) ? $config['online'] : false;
+        self::$_env['mode'] = isset($config['mode']) ? $config['mode'] : C::DEV;
+
+
+        if(self::$_env['cli'] && self::$_env['root_dir']) {
+            set_include_path(get_include_path() . PATH_SEPARATOR . self::$_env['root_dir']);
+        }
+
+        if (C::DEV === self::$_env['mode']) {
+            ini_set("display_errors", "On");
+            error_reporting(E_ALL);
+        }else{
+            ini_set("display_errors", "Off");
+            error_reporting(0);
+        }   
 
         set_exception_handler(function($e){
 
@@ -33,47 +52,73 @@ class Koala{
                     $e->getCode(),
                     $e->getTraceAsString()
                 );
-            Response::halt(500,$msg);
+            Response::write($msg,500);
         });
 
         unset($_REQUEST);
 
         spl_autoload_register(array(__CLASS__,'classAutoLoadPath'));
 
+        $_fn = koala::getBefore('go');
+        if($_fn) $_fn();
+
         foreach(self::$_route as $filter => $data){
-
             if(is_array($data)){
-
                 foreach($data as $regular => $class){
                     //判断uri
                     $param = self::_matchControllerMethod($regular);
                     if(is_array($param)){
                         $_fn = self::getFilter($filter);
                         if(!is_callable($_fn)){
-                            self::throwing('koalaError',sprintf("Can not find the filter %s",$filter));
+                            self::throwing('koalaError',sprintf("Can not find the filter %s:",$filter));
                         }
-                        $_fn();
-                        self::_loadController($class,$param);
+                        $_fn() && self::_loadController($class,$param);
+                        goto after;
+
                     }
                 }
             }else{
+
                 //判断uri
                 $param = self::_matchControllerMethod($filter);
                 if(is_array($param)){
                     self::_loadController($data,$param);
+                    goto after;
                 }
             } 
         }
 
-        self::throwing('koalaError','Can not find the controller');
+        self::throwing('notFound','Can not find the controller');
+
+after:
+        $_fn = koala::getAfter('go');
+
+        if($_fn) $_fn();
+        exit;
     }
 
     public static function throwing($t,$msg) {
+
+        if(self::getEnv('mode') == C::DEV) {
+            throw new KoalaException($msg);
+        }
+
         if($fn = self::getMap($t)){
             $fn();exit;
-        }else{
+        }
+
+        if($t == 'notFound') {
             throw new KoalaException($msg);
-        }        
+        }else{
+            Response::write('<html>
+<head><title>koala  error </title></head>
+<body bgcolor="white">
+<center><h1>koala internal error</h1></center>
+<hr><center> <a href="https://github.com/nixuehan/koala">koala micro web-framework</a> </center>
+</body>
+</html>
+',500);            
+        }
     }
 
     public static function classAutoLoadPath($class) {
@@ -82,10 +127,27 @@ class Koala{
             $class = str_replace('\\','/',$class);
         }
 
-
-        $class = strtolower($class) . '.php';
+        $file = strtolower($class) . '.php';
     
-        require_once($class);
+        !koala::fileExists($file) && self::throwing('koalaError',"No such file or directory : $file");
+
+        require_once($file);
+    }
+
+    public static function fileExists($file){
+
+        if(!file_exists($file) && self::$_env['cli']){ 
+            $paths = explode(PATH_SEPARATOR,get_include_path()); 
+            
+            foreach($paths as $path) {
+                if(file_exists(preg_replace('%/$%','',$path)."/$file")) {
+                    return true;   
+                }
+            }
+            return false; 
+        }else {
+            return true; 
+        }
     }
 
     public static function getEnv($var='',$default='') {
@@ -110,9 +172,30 @@ class Koala{
         return isset(self::$_filter[$fr]) ? self::$_filter[$fr] : false;
     }    
 
+    public static function before($fr,callable $fn) {
+        self::$_anchor_before[$fr] = $fn;
+    }
+
+    public static function getBefore($fr) {
+        return isset(self::$_anchor_before[$fr]) ? self::$_anchor_before[$fr] : false;
+    }    
+
+    public static function after($fr,callable $fn) {
+        self::$_anchor_after[$fr] = $fn;
+    }
+
+    public static function getAfter($fr) {
+        return isset(self::$_anchor_after[$fr]) ? self::$_anchor_after[$fr] : false;
+    }    
 
     public static function map($ac,callable $fn) {
-        self::$_map[$ac] = $fn;
+        if(is_array($ac)){
+            foreach($ac as $v){
+                self::$_map[$v] = $fn;
+            }
+        }else{
+            self::$_map[$ac] = $fn;
+        }
     }
 
     public static function getMap($ac) {
@@ -163,15 +246,20 @@ class Koala{
 
     //加载控制器
     private static function _loadController($class_method,$param) {
-        if($data = explode('->',$class_method)){
+        $data = @explode('->',$class_method,2);
+        if(count($data) > 1){
             list($class,$method) = $data;
             $controller_dir = self::getEnv('controller_dir');
 
             include_once $controller_dir.'/'.$class.'.php';
             $class = $controller_dir.'\\'.$class;
             $class = str_replace("/","\\",$class);
-            $obj = new $class();
-            exit(call_user_func_array(array($obj,$method),$param));
+            if(class_exists($class)) {  
+                $obj = new $class(); 
+            }else{
+                self::throwing('koalaError',"Class $class not found");
+            }
+            call_user_func_array(array($obj,$method),$param);
         }else{
             self::throwing('koalaError','Controller exception');
         }
@@ -353,6 +441,7 @@ class _Response {
 
     public function send() {
         if (ob_get_length() > 0) {
+            $this->body = ob_get_contents() . $this->body;
             ob_end_clean();
         }
 
@@ -398,7 +487,20 @@ class Config{
     private static $_config = [];
 
     public static function load($filename) {
-        self::$_config = array_merge(self::$_config,include_once($filename));
+
+        if(!koala::fileExists($filename)){
+            koala::throwing('koalaError',"Configuration file does not exist:$filename");
+        }
+
+        $opt = include_once($filename);
+
+        if(is_array($opt)){
+            self::$_config = array_merge(self::$_config,$opt);
+        }
+    }
+
+    public static function set($var,$default='') {
+        self::$_config[$var] = $default;
     }
 
     public static function get($var='',$default='') {
@@ -445,14 +547,13 @@ class Response{
         }
 
         $_f = koala::getEnv('view_dir') . '/' .$tpl.'.tpl.php';
-        self::$_layouts["layout_contents"] = self::_include($_f,$T);     
+        self::$_layouts[isset(self::$_opt['layout_contents']) ? self::$_opt['layout_contents'] : "layout_contents"] = self::_include($_f,$T);     
 
         if(!empty(self::$_layouts)){
             extract(self::$_layouts);
         }
 
         if(isset(self::$_opt['layout'])){
-
             
             $_f = koala::getEnv('view_dir') . '/' .self::$_opt['layout'].'.layout.php';
              if(!@include_once($_f)){
@@ -519,7 +620,7 @@ class Response{
         }
     }
 
-    public static function halt($code,$message='') {
+    public static function write($message,$code = 200) {
         self::$_this  = self::instance();
         self::$_this->halt($code,$message);
     }
@@ -541,9 +642,20 @@ class O{
         }
     }
 
+    public static function instance($_class) {
+        if(!isset(self::$_obj[$_class])) {
+            self::$_obj[$_class] = new $_class;
+        }
+        return self::$_obj[$_class];
+    }
+
     public static function __callStatic($className,$params) {
-        if(method_exists(
-            self::$_obj[$className],'OOO')){
+
+        if(!isset(self::$_obj[$className])){
+            koala::throwing('koalaError',"Can not find the object:$className");
+        }
+
+        if(method_exists(self::$_obj[$className],'OOO')){
             self::$_obj[$className]->OOO($params); //预定义
         }
         
@@ -552,26 +664,25 @@ class O{
 }
 
 //全局变量
-class Gvar {
+class G {
 
     private static $_var = [];
 
-    public static function __callStatic($_var,$arguments=[]) {
-        if($arguments){
-            return isset(self::$_var[$_var][$arguments[0]]) ? self::$_var[$_var][$arguments[0]] : '';
+    public static function get($_var='') {
+        if(!$_var){
+            return self::$_var;
         }else{
             return isset(self::$_var[$_var]) ? self::$_var[$_var] : '';
-        }
+        }        
     }
 
-    public static function set($var,$value='default',$scope='default') {
+    public static function set($var,$value='') {
         if(is_array($var)){
-            $scope = $value;
             foreach($var as $k => $v) {
-                self::$_var[$scope][$k] = $v;
+                self::$_var[$k] = $v;
             }
         }else{
-            self::$_var[$scope][$var] = $value;
+            self::$_var[$var] = $value;
         }
     }
 }
@@ -597,15 +708,25 @@ class Request {
     }
 
     public static function get(Array $params = []) {
+
+        if(empty($params)){
+            return $_GET;
+        }
+
         return self::_process($_GET,$params);
     }
 
     public static function post(Array $params = []) {
+
+        if(empty($params)){
+            return $_POST;
+        }
+
         return self::_process($_POST,$params);
     }
 
-    public static function file(Array $params = []) {
-        return self::_process($_FILES,$params);
+    public static function file() {
+        return $_FILES;
     }
 
     public static function isPost() {
@@ -613,10 +734,12 @@ class Request {
     }
 }
 
-
 class Session {
     
-    public function start() {
+    public function start($fn='') {
+        if(is_callable($fn)){
+            $fn();
+        }
         session_start();
     }
 
@@ -660,7 +783,6 @@ class Security {
 
     public function __construct(){ }
 
-    //数据库必须
     public static function sqlVar($var) {
         return self::addslashes($var);
     }
@@ -677,7 +799,6 @@ class Security {
         }
     }
 
-    //输出模板必须
     public static function htmlVar($var) {
         return self::htmlspecialchars($var);
     }
@@ -722,13 +843,13 @@ class Mysql {
         if(is_object($this->db[$server])) {
             return $this->db[$server];
         }
-        koala::throwing('mysqlError','Database connection does not exist');
+        koala::throwing('koalaError','Database connection does not exist');
     }
 
     public function getConnection(Array $opt) {
         $_db = @new \mysqli($opt['host'],$opt['user'],$opt['passwd']);
         if (mysqli_connect_errno()) {
-            koala::throwing('mysqlError','database connect error!');
+            koala::throwing('koalaError','database connect error!');
         }
         
         $_db->set_charset($opt['charset']);
@@ -738,7 +859,7 @@ class Mysql {
     
     public function selectDb($_db){
         if(!$this->db()->select_db($_db)){
-            koala::throwing('mysqlError',sprintf("%s don't exist",$_db));
+            koala::throwing('koalaError',sprintf("%s don't exist",$_db));
         }
     }
 
@@ -751,7 +872,7 @@ class Mysql {
         }
 
         if(!($result = $this->db()->query($sql))){
-            koala::throwing('sqlError',$this->db()->error);
+            koala::throwing('koalaError',$this->db()->error);
         }
         return $result;
     }
@@ -811,7 +932,7 @@ class Mysql {
     //重新选择数据库
     public function change($dbName) {
         if($this->_db_identify != 'default'){
-            koala::throwing('sqlError',"Don't allow change");
+            koala::throwing('koalaError',"Don't allow change");
         }
         $this->selectDb($dbName);
         return $this;
@@ -922,7 +1043,7 @@ class Mysql {
 
     private function __isThereWhere() {
         if(!$this->_where){
-            koala::throwing('sqlError','皇上~您忘记写 sql的条件了: where');
+            koala::throwing('koalaError','皇上~您忘记写 sql的条件了: where');
         }
     }
 
