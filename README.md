@@ -4,7 +4,11 @@
 
 建议的目录结构
 
-controller  module  views  index.php koala.php 
+controller 控制器
+module  数据模块
+views  模板
+index.php  入口文件
+koala.php  koala框架
 
 首先得有一个启动文件 index.php ，然后只需要几行代码，就可以驱动这个框架：
 
