@@ -59,7 +59,7 @@ class Koala{
 
         spl_autoload_register(array(__CLASS__,'classAutoLoadPath'));
 
-        $_fn = koala::getBefore('go');
+        $_fn = koala::getInit();
         if($_fn) $_fn();
 
         foreach(self::$_route as $filter => $data){
@@ -91,13 +91,27 @@ class Koala{
         self::throwing('notFound','Can not find the controller');
 
 after:
-        $_fn = koala::getAfter('go');
+        $_fn = koala::getFinish();
 
         if($_fn) $_fn();
         exit;
     }
 
     public static function throwing($t,$msg) {
+
+        $_msg = '<html>
+<head><title>koala  error </title></head>
+<body bgcolor="white">
+<center><h1>%s</h1></center>
+<hr><center> <a href="https://github.com/nixuehan/koala">koala micro web-framework</a> </center>
+</body>
+</html>
+';
+
+        
+        if(!self::getEnv('mode')){
+            Response::write(sprintf($_msg,"can't have something to do before koala::go"),500);
+        }
 
         if(self::getEnv('mode') == C::DEV) {
             throw new KoalaException($msg);
@@ -110,14 +124,7 @@ after:
         if($t == 'notFound') {
             throw new KoalaException($msg);
         }else{
-            Response::write('<html>
-<head><title>koala  error </title></head>
-<body bgcolor="white">
-<center><h1>koala internal error</h1></center>
-<hr><center> <a href="https://github.com/nixuehan/koala">koala micro web-framework</a> </center>
-</body>
-</html>
-',500);            
+            Response::write(sprintf($_msg,"koala internal error"),500);          
         }
     }
 
@@ -172,20 +179,20 @@ after:
         return isset(self::$_filter[$fr]) ? self::$_filter[$fr] : false;
     }    
 
-    public static function before($fr,callable $fn) {
-        self::$_anchor_before[$fr] = $fn;
+    public static function init(callable $fn) {
+        self::$_anchor_before = $fn;
     }
 
-    public static function getBefore($fr) {
-        return isset(self::$_anchor_before[$fr]) ? self::$_anchor_before[$fr] : false;
+    public static function getInit() {
+        return is_callable(self::$_anchor_before) ? self::$_anchor_before : false;
     }    
 
-    public static function after($fr,callable $fn) {
-        self::$_anchor_after[$fr] = $fn;
+    public static function finish(callable $fn) {
+        self::$_anchor_after = $fn;
     }
 
-    public static function getAfter($fr) {
-        return isset(self::$_anchor_after[$fr]) ? self::$_anchor_after[$fr] : false;
+    public static function getFinish() {
+        return is_callable(self::$_anchor_after) ? self::$_anchor_after : false;
     }    
 
     public static function map($ac,callable $fn) {
@@ -631,6 +638,7 @@ class Response{
 class O{
 
     private static $_obj = []; //对象容器
+    private static $_module = [];
 
     private function __construct() {}
     private function __destruct() {}
@@ -647,6 +655,14 @@ class O{
             self::$_obj[$_class] = new $_class;
         }
         return self::$_obj[$_class];
+    }
+
+    public static function module($_class) {
+        if(!isset(self::$_module[$_class])) {
+            $_class = "\module\\" . $_class;
+            self::$_module[$_class] = new $_class;
+        }
+        return self::$_module[$_class];
     }
 
     public static function __callStatic($className,$params) {
@@ -824,8 +840,7 @@ class Security {
 
 class Mysql {
 
-    private $db = [];
-    private $_db_identify = 'default';
+    private $db = null;
     public static $debug = false;
     protected $tableName = ''; //表名
     protected $_where = '';
@@ -835,13 +850,12 @@ class Mysql {
     public function __construct($params,$identify='default') {
         $this->_params = $params;
         //默认的db link
-        $this->db[$identify] = $this->getConnection($this->_params);
+        $this->db = $this->getConnection($this->_params);
     }
 
-    public function db($server='default') {
-
-        if(is_object($this->db[$server])) {
-            return $this->db[$server];
+    public function resource() {
+        if(is_object($this->db)) {
+            return $this->db;
         }
         koala::throwing('koalaError','Database connection does not exist');
     }
@@ -858,9 +872,7 @@ class Mysql {
     }
     
     public function selectDb($_db){
-        if(!$this->db()->select_db($_db)){
-            koala::throwing('koalaError',sprintf("%s don't exist",$_db));
-        }
+        $this->resource()->select_db($_db);
     }
 
     public function query($sql) {
@@ -871,8 +883,8 @@ class Mysql {
             exit;
         }
 
-        if(!($result = $this->db()->query($sql))){
-            koala::throwing('koalaError',$this->db()->error);
+        if(!($result = $this->resource()->query($sql))){
+            koala::throwing('koalaError',$this->resource()->error);
         }
         return $result;
     }
@@ -911,13 +923,11 @@ class Mysql {
     }
 
     public function insert_id() {
-        return $this->db()->insert_id;
+        return $this->resource()->insert_id;
     }
 
     public function close() {
-        foreach($this->db as $_db){
-            $_db->close();
-        }
+        $this->db->close();
     }
 
     public function table($tableName) {
@@ -931,9 +941,6 @@ class Mysql {
 
     //重新选择数据库
     public function change($dbName) {
-        if($this->_db_identify != 'default'){
-            koala::throwing('koalaError',"Don't allow change");
-        }
         $this->selectDb($dbName);
         return $this;
     }
@@ -1087,9 +1094,30 @@ class Mysql {
     }
 }
 
+class Database {
+
+    private static $_o = [];
+
+    public static function getConnection($db,callable $func){
+        if(!isset(self::$_o[$db])){
+            self::$_o[$db] = $func();
+        }
+        return self::$_o[$db];
+    }
+
+    public static function __callStatic($db,$arguments) {
+
+        if(!isset(self::$_o[$db])){
+            koala::throwing('koalaError',"No database connection:$db");
+        }
+        
+        return self::$_o[$db];
+    }
+}
+
 trait dbServer {
     public function db($server='db') {
-        return O::$server();
+        return Database::$server();
     }   
 }
 

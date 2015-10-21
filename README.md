@@ -90,7 +90,7 @@ Koala::route([
 Koala::go([
     'controller_dir' => 'mygod',  //控制器目录
     'view_dir' 		 => '模板目录', //模板目录
-    'mode'		 => '运行模式', // dev or online ... 
+    'mode'		 => 'dev', // 运行模式 dev or online ... 
 ]);
 
 ```
@@ -176,7 +176,7 @@ koala::map('koalaError',function(){
 });
 ```
 
-#全局注册对象
+#全局注册对象 class O
 
 有时候我们需要全局注册一个对象，方便我们在任何控制器、模块里进行共享调用。我们可以在 index.php入口文件里进行注册对象
 
@@ -195,37 +195,58 @@ O::register('fetch',function(){
 O::fetch()->get();
 ```
 
-我们经常打交道的数据库连接
+初始化一些对象时候，我们希望单例。可以这样做
 
 ```php
-O::register('db',function(){
-    return new Mysql([
-        'host' => Config::get('host'),
-        'user' => Config::get('user'),
-        'passwd' => Config::get('passwd'),
-        'database' => Config::get('database'),
-        'charset' => Config::get('charset')
-    ]);
-});
+$member = O::instance('\module\bbs\member');
 ```
 
-这样调用。 ps:当然对于数据库操作来说不建议这样使用。
+O 类也提供了一个便捷实例化模块类的方法
 
 ```php
-O::db()->query(sql);
+$member = O::module(bbs\member);
+$member->signin('asdfasdf');
 ```
 
-#预执行
+#事件回调
 
-希望在执行 koala::go() 之前和之后 执行一些我们的方法。可以这样做
+希望在执行 koala::go() 之前初始化和执行完成后执行一些我们的方法。可以这样做
 
 ```php
-Koala::before('go',function(){
+Koala::init(function(){
     Config::load("config.php");
 });
 
-Koala::after('go',function(){
+Koala::finish(function(){
     echo('xx');
+});
+```
+
+我们在index.php 启动文件里经常要初始化一些逻辑。那就要这样做
+
+```php
+Koala::init(function(){
+    Config::load("config.php");
+
+    Database::getConnection('write',function(){
+        return new Mysql([
+            'host' => Config::get('host'),
+            'user' => Config::get('user'),
+            'passwd' => Config::get('passwd'),
+            'database' => Config::get('database'),
+            'charset' => Config::get('charset')
+        ]);
+    });
+
+    Database::getConnection('read',function(){
+        return new Mysql([
+            'host' => Config::get('host'),
+            'user' => Config::get('user'),
+            'passwd' => Config::get('passwd'),
+            'database' => Config::get('database'),
+            'charset' => Config::get('charset')
+        ]);
+    });
 });
 ```
 
@@ -509,16 +530,137 @@ $company = new \module\company();
 $session = O::instance('\module\Company');
 ```
 
+#数据库
+
+1\.首先连接数据库。我们开两个连接 读写分离
+
+```php
+Koala::init(function(){
+
+    Database::getConnection('write',function(){
+        return new Mysql([
+            'host' => Config::get('host'),
+            'user' => Config::get('user'),
+            'passwd' => Config::get('passwd'),
+            'database' => Config::get('database'),
+            'charset' => Config::get('charset')
+        ]);
+    });
+
+    Database::getConnection('read',function(){
+        return new Mysql([
+            'host' => Config::get('host'),
+            'user' => Config::get('user'),
+            'passwd' => Config::get('passwd'),
+            'database' => Config::get('database'),
+            'charset' => Config::get('charset')
+        ]);
+    });
+});
+```
+
+2\.然后在模块里这样玩
+
+```php
+namespace module\bbs;
+
+use koala\Config;
+use koala\Module;
+
+class Member extends Module{
+
+    public function signin($access_token) {
+      return $this->db('readable')->table('company')
+                             ->where("access_token='%s'",$access_token)
+                             ->findOne();
+      
+    }
+}
+```
+
+内置的ORM 各种操作展示
+
+```php
+$this->db('readable')->table('company')
+                 ->insert([
+                    'username' => 'meigui',
+                    'age' => 18
+                 ]);
+```
+
+```php
+$this->db('writable')->table('company')
+                  ->where("access_token='%s'",$access_token) 
+                  ->delete();
+```
+
+```php
+$this->db('readable')->table('company')
+                 ->where("access_token='%s'",$access_token)
+                 ->has()
+```
+
+```php
+$this->db('readable')->table('company')
+                 ->where("access_token='%s'",$access_token)
+                 ->count()
+```
+
+```php
+$this->db('writable')->table('company')
+                 ->where("access_token='%s'",$access_token)
+                 ->find();
+```
+
+```php
+$this->db('writable')->table('company')
+                  ->where("access_token='%s'",$access_token) 
+                  ->update([
+                    'access_token' => 'asdfe',
+                    'age' => 20
+                  ]);
+```
 
 
+```php
+$this->db('readable')->table('forms')
+                 ->raw('ORDER BY pc_pv DESC')
+                 ->limit(2, 10)
+                 ->find();
+```
 
+```php
+$this->db('readable')->table('forms')
+                 ->raw("Where access_token = '%s' ORDER BY pc_pv DESC",$access_token)
+                 ->limit(2, 10)
+                 ->find();
+```
 
+遇到复杂的SQL 就不适合ORM了
 
+```php
+Database::writable()->query("INSERT INTO forms VALUES('a','b')");
+Database::writable()->insert_id();
+```
 
+```php
+Database::writable()->query("DELETE FROM forms");
+```
 
+```php
+Database::readable()->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
+```
 
+```php
+Database::readable()->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
+```
 
+遇到更复杂的需求，需要更底层一点的mysqli 方法。比如 事务
 
-
-
+```php
+$db = $this->db('read')->resource();
+$db->autocommit(false);
+$db->query("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
+$db->commit();
+```
 
