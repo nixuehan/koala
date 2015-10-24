@@ -2,7 +2,8 @@
 namespace koala;
 
 class C{
-    const DEV = 'dev'; 
+    const DEV = 'dev';
+    const CACHE = 'cache';
 }
 
 class Koala{
@@ -29,6 +30,7 @@ class Koala{
         self::$_env['request_method'] = isset($_SERVER['REQUEST_METHOD']) && !empty($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
         self::$_env['view_dir'] = isset($config['view_dir']) ? $config['view_dir'] : 'views';
         self::$_env['mode'] = isset($config['mode']) ? $config['mode'] : C::DEV;
+        self::$_env['cache'] = isset($config['cache']) ? $config['cache'] : C::CACHE;
 
 
         if(self::$_env['cli'] && self::$_env['root_dir']) {
@@ -141,7 +143,7 @@ after:
         require_once($file);
     }
 
-    public static function fileExists($file){
+    private static function __fileExists($file){
 
         if(!file_exists($file) && self::$_env['cli']){ 
             $paths = explode(PATH_SEPARATOR,get_include_path()); 
@@ -155,6 +157,10 @@ after:
         }else {
             return true; 
         }
+    }
+
+    public static function fileExists($file) {
+        return self::$_env['cli'] ? self::__fileExists($file)  :  file_exists($file);
     }
 
     public static function getEnv($var='',$default='') {
@@ -837,6 +843,31 @@ class Security {
     }
 }
 
+class Cache {
+
+    public static function build($key,Array $data) {
+        $toStr = '<?php'.PHP_EOL . 'return ' .var_export($data,TRUE).';';
+        $fileSize = file_put_contents(Koala::getenv('cache').'/'.$key.'.php',$toStr,LOCK_EX);
+        if(!$fileSize){
+            return false;
+        }
+        return true;
+    }
+
+    public static function load($key) {
+        return @include_once(Koala::getenv('cache').'/'.$key.'.php');
+    }
+
+    public static function delete($key) {
+        $cache_file = Koala::getenv('cache').'/'.$key.'.php';
+
+        if(!file_exists($cache_file)) {
+            return false;
+        }
+        return unlink($cache_file);
+    }
+}
+
 
 class Mysql {
 
@@ -1132,3 +1163,4 @@ class Module extends Mysql {
 
     use dbServer;
 }
+
