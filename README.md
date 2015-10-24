@@ -356,7 +356,7 @@ $access_token = $get['access_token'];
 $file = Request::file();
 ```
 
-获取原始的 GET 或者 POST 。 ps: 没做任何安全处理，自行做处理
+获取原始的 GET 或者 POST,只做了简单的 注入字符转义
 
 ```php
 $get = Request::get();

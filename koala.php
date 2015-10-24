@@ -732,6 +732,7 @@ class Request {
     public static function get(Array $params = []) {
 
         if(empty($params)){
+           $_GET = Security::sqlVar($_GET);
             return $_GET;
         }
 
@@ -741,6 +742,7 @@ class Request {
     public static function post(Array $params = []) {
 
         if(empty($params)){
+           $_POST = Security::sqlVar($_POST);
             return $_POST;
         }
 
