@@ -102,7 +102,8 @@ Koala::route([
 Koala::go([
     'controller_dir' => 'mygod',  //控制器目录
     'view_dir' 		 => '模板目录', //模板目录
-    'mode'		 => 'dev', // 运行模式 dev or online ... 
+    'mode'		 => 'dev', // 运行模式 dev or online ...
+    'cache'      => 'data/cache' //cache 目录 默认 cache
 ]);
 
 ```
