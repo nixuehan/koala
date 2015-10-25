@@ -543,6 +543,18 @@ $company = new \module\company();
 $session = O::instance('\module\Company');
 ```
 
+#简单的缓存缓存 class Cache
+
+```php
+if(!Cache::build('xxoo',['xx' => 23234])) {
+    Response::write('false');
+}
+
+Cache::delete('xxoo');
+
+$xxoo = Cache::load('xxoo');
+```
+
 #数据库
 
 1\.首先连接数据库。我们开两个连接 读写分离
@@ -676,6 +688,8 @@ $db->autocommit(false);
 $db->query("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
 $db->commit();
 ```
+
+
 
 #cli
 
