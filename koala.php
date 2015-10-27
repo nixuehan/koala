@@ -68,13 +68,19 @@ class Koala{
             if(is_array($data)){
                 foreach($data as $regular => $class){
                     //判断uri
-                    $param = self::_matchControllerMethod($regular);
+                    $param = self::__matchControllerMethod($regular);
                     if(is_array($param)){
                         $_fn = self::getFilter($filter);
                         if(!is_callable($_fn)){
-                            self::throwing('koalaError',sprintf("Can not find the filter %s:",$filter));
+                            self::throwing('koalaError',sprintf("Can not find the filter : %s",$filter));
                         }
-                        $_fn() && self::_loadController($class,$param);
+
+                        if($_fn() === false){
+                            self::throwing($filter,sprintf("Has been blocked by filter : %s",$filter));
+                        }else{
+                            self::loadController($class,$param);
+                        }
+
                         goto after;
 
                     }
@@ -82,9 +88,9 @@ class Koala{
             }else{
 
                 //判断uri
-                $param = self::_matchControllerMethod($filter);
+                $param = self::__matchControllerMethod($filter);
                 if(is_array($param)){
-                    self::_loadController($data,$param);
+                    self::loadController($data,$param);
                     goto after;
                 }
             } 
@@ -109,7 +115,6 @@ after:
 </body>
 </html>
 ';
-
         
         if(!self::getEnv('mode')){
             Response::write(sprintf($_msg,"can't have something to do before koala::go"),500);
@@ -161,6 +166,18 @@ after:
 
     public static function fileExists($file) {
         return self::$_env['cli'] ? self::__fileExists($file)  :  file_exists($file);
+    }
+
+    public static function __include($file,$once=false) {
+        if(self::fileExists($file)){
+            if($once){
+                return include_once($file);
+            }else{
+                return include($file);
+            }
+        }
+
+        return false;
     }
 
     public static function getEnv($var='',$default='') {
@@ -217,7 +234,7 @@ after:
 
 
     //分离控制器和方法
-    private static function _matchControllerMethod($regular) {
+    private static function __matchControllerMethod($regular) {
         if(self::$_env['cli']){
            if(empty($_SERVER['argv'])){
                 self::throwing('koalaError','register_argc_argv must be on');
@@ -258,13 +275,18 @@ after:
     }
 
     //加载控制器
-    private static function _loadController($class_method,$param) {
+    public static function loadController($class_method,$param) {
         $data = @explode('->',$class_method,2);
         if(count($data) > 1){
             list($class,$method) = $data;
             $controller_dir = self::getEnv('controller_dir');
 
-            include_once $controller_dir.'/'.$class.'.php';
+            $class_file = $controller_dir.'/'.$class.'.php';
+
+            if(!self::__include($class_file,true)){
+                self::throwing('koalaError',"Class file is not found : $class_file");
+            }
+
             $class = $controller_dir.'\\'.$class;
             $class = str_replace("/","\\",$class);
             if(class_exists($class)) {  
@@ -501,8 +523,10 @@ class Config{
 
     public static function load($filename) {
 
+        $filename = $filename . '.php';
+        
         if(!koala::fileExists($filename)){
-            koala::throwing('koalaError',"Configuration file does not exist:$filename");
+            koala::throwing('koalaError',"Configuration file does not exist:$filename.php");
         }
 
         $opt = include_once($filename);
@@ -535,12 +559,6 @@ class Response{
         return self::$_this;
     }
 
-    public static function init($options = []) {
-        foreach($options as $k => $v){
-            self::$_opt[$k] = $v;
-        }
-    }
-
     public static function json($data, $code = 200, $encode = true) {
 
         self::$_this  = self::instance();
@@ -552,7 +570,17 @@ class Response{
              ->send();
     }
 
+    public static function view($options = []) {
+        foreach($options as $k => $v){
+            self::$_opt[$k] = $v;
+        }
+    }
+
     public static function layout($tpl,$T=[]) {
+
+        if(isset(self::$_opt['globals'])) {
+            $T = $T + self::$_opt['globals'];
+        }
 
         if(!empty($T)){
             $T = Security::htmlVar($T);
@@ -560,7 +588,7 @@ class Response{
         }
 
         $_f = koala::getEnv('view_dir') . '/' .$tpl.'.tpl.php';
-        self::$_layouts[isset(self::$_opt['layout_contents']) ? self::$_opt['layout_contents'] : "layout_contents"] = self::_include($_f,$T);     
+        self::$_layouts[isset(self::$_opt['layout_contents']) ? self::$_opt['layout_contents'] : "layout_contents"] = self::__include($_f,$T);     
 
         if(!empty(self::$_layouts)){
             extract(self::$_layouts);
@@ -569,15 +597,22 @@ class Response{
         if(isset(self::$_opt['layout'])){
             
             $_f = koala::getEnv('view_dir') . '/' .self::$_opt['layout'].'.layout.php';
-             if(!@include_once($_f)){
-                koala::throwing('koalaError',sprintf("Can't find view file %s",$_f));
-            }           
+            
+            if(!koala::fileExists($_f)){
+                 koala::throwing('koalaError',sprintf("Can't find view file %s",$_f));
+            }
+            
+            include_once($_f);        
         }
 
 
     }
 
     public static function render($tpl,$T=[]) {
+
+        if(isset(self::$_opt['share'])) {
+            $T = $T + self::$_opt['share'];
+        }
 
         if(!empty($T)){
             $T = Security::htmlVar($T);
@@ -586,12 +621,14 @@ class Response{
 
         $_f = koala::getEnv('view_dir') . '/' .$tpl.'.tpl.php';
 
-        if(!@include_once($_f)){
-            koala::throwing('koalaError',sprintf("Can't find view file %s",$_f));
+        if(!koala::fileExists($_f)){
+             koala::throwing('koalaError',sprintf("Can't find view file %s",$_f));
         }
+
+        include_once($_f);
     }
 
-    private static function _include($filename,$T=[]) {
+    private static function __include($filename,$T=[]) {
         if (is_file($filename)) {
             if(!empty($T)){
                 extract($T);
@@ -618,19 +655,41 @@ class Response{
     //
     public static function fragments($class_method,Array $param=[]) {
 
-        if($data = explode('->',$class_method)){
-            list($class,$method) = $data;
-            $controller_dir = koala::getEnv('controller_dir');
+        @list($filter,$class_method) = @explode(':::', $class_method,2);
 
-            include_once $controller_dir.'/'.$class.'.php';
-            $class = $controller_dir.'\\'.$class;
-            $class = str_replace("/","\\",$class);
-            $obj = new $class();
-            call_user_func_array(array($obj,$method),$param);
+        if($class_method) {
+            $_fn = koala::getFilter($filter);
+            if(!is_callable($_fn)){
+                koala::throwing('koalaError',sprintf("Can not find the filter : %s",$filter));
+            }
 
+            if($_fn() === false){
+                koala::throwing($filter,sprintf("Has been blocked by filter : %s",$filter));
+            }
         }else{
-            koala::throwing('koalaError','Controller exception');
+            $class_method = $filter;
         }
+        
+        koala::loadController($class_method,$param);
+
+        // if($data = explode('->',$class_method)){
+        //     list($class,$method) = $data;
+        //     $controller_dir = koala::getEnv('controller_dir');
+
+        //     $class_file =  $controller_dir.'/'.$class.'.php';
+
+        //     if(!koala::__include($class_file,true)){
+        //         koala::throwing('koalaError',"Class file is not found : $class_file");
+        //     }
+
+        //     $class = $controller_dir.'\\'.$class;
+        //     $class = str_replace("/","\\",$class);
+        //     $obj = new $class();
+        //     call_user_func_array(array($obj,$method),$param);
+
+        // }else{
+        //     koala::throwing('koalaError','Controller exception');
+        // }
     }
 
     public static function write($message,$code = 200) {
@@ -712,7 +771,7 @@ class G {
 //请求
 class Request {
 
-    private static function _process(&$container,Array $params = []) {
+    private static function __process(&$container,Array $params = []) {
 
         if(empty($params)){
             return $container;
@@ -736,7 +795,7 @@ class Request {
             return $_GET;
         }
 
-        return self::_process($_GET,$params);
+        return self::__process($_GET,$params);
     }
 
     public static function post(Array $params = []) {
@@ -746,7 +805,7 @@ class Request {
             return $_POST;
         }
 
-        return self::_process($_POST,$params);
+        return self::__process($_POST,$params);
     }
 
     public static function file() {
@@ -764,7 +823,9 @@ class Session {
         if(is_callable($fn)){
             $fn();
         }
-        session_start();
+        if(session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
     }
 
     public function get($s) {
@@ -779,7 +840,7 @@ class Session {
         }
     }
 
-    public function set($s) {
+    public function set(Array $s) {
         foreach($s as $k =>$v){
             $_SESSION[$k] = $v;
         }

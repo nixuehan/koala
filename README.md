@@ -30,7 +30,7 @@ Koala::go();
 
 # php版本要求
 
-koala 必须 php5.4以上版本。建议使用 php5.6以上版本
+koala 必须 php5.4以上版本。
 
 #License
 
@@ -103,7 +103,8 @@ Koala::go([
     'controller_dir' => 'mygod',  //控制器目录
     'view_dir' 		 => '模板目录', //模板目录
     'mode'		 => 'dev', // 运行模式 dev or online ...
-    'cache'      => 'data/cache' //cache 目录 默认 cache
+    'cache'      => 'data/cache', //cache 目录 默认 cache
+    'root_dir' => __DIR__ //当要使用cli，就要设置网站根目录
 ]);
 
 ```
@@ -179,13 +180,13 @@ koala::filter('post',function(){
 
 ```php
 koala::map('notFound',function(){
-    include 'errors/404.html';
+    include 'errors/404.php';
 });
 ```
 
 ```php
 koala::map('koalaError',function(){
-    include 'errors/koalaError.html';
+    include 'errors/koalaError.php';
 });
 ```
 
@@ -268,7 +269,7 @@ Koala::init(function(){
 加载配置文件
 
 ```php
-Config::load("config.php");
+Config::load("config");
 ```
 
 配置文件
@@ -291,8 +292,8 @@ return [
 当然我们也可以一次加载多个配置文件
 
 ```php
-Config::load("database.php");
-Config::load("default.php");
+Config::load("database");
+Config::load("default");
 ```
 
 获取配置选项 
@@ -430,7 +431,7 @@ Response::init([
 ]);
 ```
 
-模板模式
+###传统模板模式
 
 直接输出模板文件
 
@@ -465,15 +466,27 @@ public function f1() {
 }
 ```
 
-4\. 然后模板里面调用
+4\. 然后其他模板里面调用
 
 ```php
-<?php use koala\Response?>
+use koala\Response
 
-<?php Response::fragments('demo->f1')?>
+Response::fragments('demo->f1')
 
 我是<?=$myname?>
 ```
+
+存在过滤器
+```php
+Response::fragments('signin:::main->profile'); //  signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
+```
+
+模板参数设置
+Response::view([
+    'globals' => [
+        'myname' => 'nixuehan'   //可在所有模板获取此变量
+    ]
+])
 
 
 输出json
@@ -678,6 +691,12 @@ Database::readable()->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawe
 
 ```php
 Database::readable()->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
+```
+
+```php
+Database::writable()->table('forms_statistics')
+                    ->where("fid = %d AND ps_year = %d AND ps_month = %d AND ps_day = %d AND ps_hour = %d",$fid,$year,$month,$day,$hour)
+                    ->update(sprintf("%s = %s + 1",$field,$field));
 ```
 
 遇到更复杂的需求，需要更底层一点的mysqli 方法。比如 事务
