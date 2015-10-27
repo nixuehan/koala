@@ -482,7 +482,7 @@ Response::fragments('signin:::main->profile'); //  signin::: 意思是，先经�
 ```
 
 模板参数设置
-Response::view([
+Response::viewOpt([
     'globals' => [
         'myname' => 'nixuehan'   //可在所有模板获取此变量
     ]
