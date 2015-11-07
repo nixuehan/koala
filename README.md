@@ -168,8 +168,36 @@ koala::filter('post',function(){
 });
 ```
 
-在进入 '/check' 之前会先执行'post' 过滤器的匿名函数。这个很好理解是吧。 过滤器返回要注意，
-如果返回是 true 那么程序会继续往下执行，如果返回是false 那程序到此中止。
+
+在进入 '/check' 之前会先执行'post' 过滤器的匿名函数。这个很好理解是吧。
+
+
+一个路由是支持多个过滤器的，比如：
+
+
+```php
+Koala::route([
+
+    'post >> xxoo' => [
+        '/check' => 'demo->check'
+    ]
+
+]);
+```
+
+先执行 post 过滤器 再执行 xxoo  数量不限制
+
+```php
+koala::filter('post',function(){
+    if(!Request::isPost()){
+        Response::json(['error' => YES]);
+    }
+});
+
+koala::filter('xxoo',function(){
+    echo('jj');
+});
+```
 
 
 #异常拦截

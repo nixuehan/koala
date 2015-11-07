@@ -72,17 +72,18 @@ class Koala{
                     //判断uri
                     $param = self::__matchControllerMethod($regular);
                     if(is_array($param)){
-                        $_fn = self::getFilter($filter);
-                        if(!is_callable($_fn)){
-                            self::throwing('koalaError',sprintf("Can not find the filter : %s",$filter));
+
+                        $filter = str_replace(' ','',$filter);
+
+                        $filters = @explode('>>',$filter);
+
+                        foreach((array)$filters as $t){
+                            $_fn = self::getFilter($t);
+                            var_dump($t);
+                            is_callable($_fn) && $_fn();
                         }
 
-                        if($_fn() === false){
-                            self::throwing($filter,sprintf("Has been blocked by filter : %s",$filter));
-                        }else{
-                            self::loadController($class,$param);
-                        }
-
+                        self::loadController($class,$param);
                         goto after;
 
                     }
