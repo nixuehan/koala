@@ -343,17 +343,17 @@ Config::set('salt','asdfwerwqe');
 模块间传递变量
 
 ```php
-G::set([
+G::set('member',[
     'member_name' => 'yeziqing',
     'member_age' => 18
 ]);
 
 
-G::set('member_name','yeziqi');
+G::get(); //返回所有
 
-G::get();
+G::get('member'); 
 
-G::get('member_age');
+G::get('member','member_age');
 ```
 
 # GET、POST请求  class Request

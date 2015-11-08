@@ -79,7 +79,6 @@ class Koala{
 
                         foreach((array)$filters as $t){
                             $_fn = self::getFilter($t);
-                            var_dump($t);
                             is_callable($_fn) && $_fn();
                         }
 
@@ -752,21 +751,14 @@ class G {
 
     private static $_var = [];
 
-    public static function get($_var='') {
-        if(!$_var){
-            return self::$_var;
-        }else{
-            return isset(self::$_var[$_var]) ? self::$_var[$_var] : '';
-        }        
+    public static function get($namespace,$_var='') {
+        if(!$_var) return isset(self::$_var[$namespace]) ? self::$_var[$namespace] : ''; 
+        return isset(self::$_var[$namespace][$_var]) ? self::$_var[$namespace][$_var] : '';     
     }
 
-    public static function set($var,$value='') {
-        if(is_array($var)){
-            foreach($var as $k => $v) {
-                self::$_var[$k] = $v;
-            }
-        }else{
-            self::$_var[$var] = $value;
+    public static function set($namespace,Array $var=[]) {
+        foreach($var as $k => $v) {
+            self::$_var[$namespace][$k] = $v;
         }
     }
 }
