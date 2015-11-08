@@ -271,22 +271,24 @@ Koala::init(function(){
     Config::load("config.php");
 
     Database::getConnection('write',function(){
+        $opt = Config::get('mysql');
         return new Mysql([
-            'host' => Config::get('host'),
-            'user' => Config::get('user'),
-            'passwd' => Config::get('passwd'),
-            'database' => Config::get('database'),
-            'charset' => Config::get('charset')
+            'host'      => $opt['host'],
+            'user'      => $opt['user'],
+            'passwd'    => $opt['passwd'],
+            'database'  => $opt['database'],
+            'charset'   => $opt['charset']
         ]);
     });
 
     Database::getConnection('read',function(){
+        $opt = Config::get('mysql');
         return new Mysql([
-            'host' => Config::get('host'),
-            'user' => Config::get('user'),
-            'passwd' => Config::get('passwd'),
-            'database' => Config::get('database'),
-            'charset' => Config::get('charset')
+            'host'      => $opt['host'],
+            'user'      => $opt['user'],
+            'passwd'    => $opt['passwd'],
+            'database'  => $opt['database'],
+            'charset'   => $opt['charset']
         ]);
     });
 });
@@ -305,17 +307,20 @@ Config::load("config");
 ```php
 return [
 
-    //数据库连接
-    'host' => 'rdseb7bsdsd.qq.om',
+    'mysql' => [
+        //数据库
+        'host' => '10.3.2.1',
 
-    'database' => 'koala',
+        'user' => 'root',
 
-    'user' => 'koala',
+        'passwd' => 'eeess',
 
-    'passwd' => 'asdkoalaxdeoi',
+        'database' => 'fuddn',
 
-    'charset' => 'utf8'
+        'charset' => 'utf8',
+    ]
 ];
+
 ```
 当然我们也可以一次加载多个配置文件
 
@@ -327,7 +332,9 @@ Config::load("default");
 获取配置选项 
 
 ```php
-$host = Config::get('host');
+$host = Config::get('mysql','host');
+
+$host = Config::get('mysql');
 
 $conf = Config::get();
 ```
@@ -335,7 +342,7 @@ $conf = Config::get();
 动态添加配置选项
 
 ```php
-Config::set('salt','asdfwerwqe');
+Config::set('member','salt','asdfwerwqe');
 ```
 
 #共享变量 class G
@@ -604,22 +611,24 @@ $xxoo = Cache::load('xxoo');
 Koala::init(function(){
 
     Database::getConnection('writable',function(){
+        $opt = Config::get('mysql');
         return new Mysql([
-            'host' => Config::get('host'),
-            'user' => Config::get('user'),
-            'passwd' => Config::get('passwd'),
-            'database' => Config::get('database'),
-            'charset' => Config::get('charset')
+            'host'      => $opt['host'],
+            'user'      => $opt['user'],
+            'passwd'    => $opt['passwd'],
+            'database'  => $opt['database'],
+            'charset'   => $opt['charset']
         ]);
     });
 
     Database::getConnection('readable',function(){
+        $opt = Config::get('mysql');
         return new Mysql([
-            'host' => Config::get('host'),
-            'user' => Config::get('user'),
-            'passwd' => Config::get('passwd'),
-            'database' => Config::get('database'),
-            'charset' => Config::get('charset')
+            'host'      => $opt['host'],
+            'user'      => $opt['user'],
+            'passwd'    => $opt['passwd'],
+            'database'  => $opt['database'],
+            'charset'   => $opt['charset']
         ]);
     });
 });

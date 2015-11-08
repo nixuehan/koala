@@ -538,13 +538,14 @@ class Config{
         }
     }
 
-    public static function set($var,$default='') {
-        self::$_config[$var] = $default;
+    public static function set($section,$var,$default) {
+        self::$_config[$section][$var] = $default;
     }
 
-    public static function get($var='',$default='') {
-        if($var == '') return self::$_config;
-        return isset(self::$_config[$var]) && !empty(self::$_config[$var]) ? self::$_config[$var] : $default;
+    public static function get($section='',$var='',$default='') {
+        if($section === '') return self::$_config;
+        if($var === '') return isset(self::$_config[$section]) ? self::$_config[$section] : [];
+        return isset(self::$_config[$section][$var]) && !empty(self::$_config[$section][$var]) ? self::$_config[$section][$var] : $default;
     }
 }
 
