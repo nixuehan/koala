@@ -241,6 +241,8 @@ O::fetch()->get();
 
 ```php
 $member = O::instance('\module\bbs\member');
+
+$sms = O::instance('utils/sms');
 ```
 
 O 类也提供了一个便捷实例化模块类的方法
