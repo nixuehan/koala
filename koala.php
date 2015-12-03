@@ -33,7 +33,7 @@ class Koala{
         self::$_env['view_dir'] = isset($config['view_dir']) ? $config['view_dir'] : 'views';
         self::$_env['mode'] = isset($config['mode']) ? $config['mode'] : Opt::DEV;
         self::$_env['cache'] = isset($config['cache']) ? $config['cache'] : Opt::CACHE;
-
+        self::$_env['log'] = isset($config['log']) ? $config['log'] : '';
 
         if(self::$_env['cli'] && self::$_env['root_dir']) {
             set_include_path(get_include_path() . PATH_SEPARATOR . self::$_env['root_dir']);
@@ -84,11 +84,9 @@ class Koala{
 
                         self::loadController($class,$param);
                         goto after;
-
                     }
                 }
             }else{
-
                 //判断uri
                 $param = self::__matchControllerMethod($filter);
                 if(is_array($param)){
@@ -234,10 +232,10 @@ after:
         return isset(self::$_map[$ac]) ? self::$_map[$ac] : false;
     }
 
-
     //分离控制器和方法
     private static function __matchControllerMethod($regular) {
         if(self::$_env['cli']){
+
            if(empty($_SERVER['argv'])){
                 self::throwing('koalaError','register_argc_argv must be on');
            }
@@ -251,19 +249,18 @@ after:
 
             self::$_env['request_uri'] = isset($_SERVER['REQUEST_URI']) && !empty($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
         
-            $params = [];
-            $args = parse_url(self::$_env['request_uri']);
-            if (isset($args['query'])) {
-                parse_str($args['query'], $params);
-            }
-
-            $_ru = strstr(self::$_env['request_uri'],'?',true);
-            if($_ru) self::$_env['request_uri'] = $_ru;
-
-
-            $_GET = &$params;
-
         }
+
+        $params = [];
+        $args = parse_url(self::$_env['request_uri']);
+        if (isset($args['query'])) {
+            parse_str($args['query'], $params);
+        }
+
+        $_ru = strstr(self::$_env['request_uri'],'?',true);
+        if($_ru) self::$_env['request_uri'] = $_ru;
+
+        $_GET = &$params;
 
         //匹配uri
         if(preg_match('/^'.addcslashes($regular,"\57").'$/i',self::$_env['request_uri'],$matchs)){
@@ -296,6 +293,7 @@ after:
             }else{
                 self::throwing('koalaError',"Class $class not found");
             }
+
             call_user_func_array(array($obj,$method),$param);
         }else{
             self::throwing('koalaError','Controller exception');
@@ -305,6 +303,69 @@ after:
 
 class KoalaException extends \Exception{}
 
+//日志
+class Log {
+
+    private static $obj = NULL;
+    private $path = '';
+    private static $logFormat = '';
+    private static $tail = '.log.php';
+
+    private static function instance() {
+        if(!is_object(self::$obj)){
+            self::$obj = new self;
+        }
+        return self::$obj;        
+    }
+
+    public static function format($formtTxt) {
+        self::$logFormat = $formtTxt;
+    }
+
+    public static function path($file) {
+        $obj = self::instance();
+        $obj->path = $file . self::$tail;
+        return $obj;
+    }
+
+    public static function write($content) {
+
+        if(!($log = koala::getenv('log'))){
+            return false;
+        }
+
+        $obj = self::instance();
+        $obj->path = $log . self::$tail;
+        $obj->append($content);
+    }
+
+    private function init($content) {
+        if(is_array($content)){
+            $content = var_export($content,true);
+        }
+
+        if(!$this->path){
+            koala::throwing('koalaError','log file does not exist');
+        }
+
+        $front = self::$logFormat ?  $this->logFormat : "===== " . date('Y-m-d h:m:s',time())." =====";
+        return $front . PHP_EOL . $content . PHP_EOL;  
+    }
+
+    public function append($content) {
+    
+        $content = $this->init($content);
+
+        file_put_contents($this->path, $content,FILE_APPEND | LOCK_EX);
+    }
+
+    public function put($content) {
+ 
+        $content = $this->init($content);
+
+        file_put_contents($this->path, $content,LOCK_EX);
+    }
+}
 
 //输出
 class _Response {
@@ -523,6 +584,12 @@ class Config{
 
     private static $_config = [];
 
+    public static function __callStatic($className,$params) {
+        include_once 'config/tencentyun.php';
+        $cls = "\config\\$className";
+        return $cls;
+    }
+
     public static function load($filename) {
 
         $filename = $filename . '.php';
@@ -607,8 +674,6 @@ class Response{
             
             include_once($_f);        
         }
-
-
     }
 
     public static function render($tpl,$T=[]) {
@@ -655,7 +720,6 @@ class Response{
                      ->send();
     }
 
-    //
     public static function fragments($class_method,Array $param=[]) {
 
         @list($filter,$class_method) = @explode(':::', $class_method,2);
@@ -674,32 +738,12 @@ class Response{
         }
         
         koala::loadController($class_method,$param);
-
-        // if($data = explode('->',$class_method)){
-        //     list($class,$method) = $data;
-        //     $controller_dir = koala::getEnv('controller_dir');
-
-        //     $class_file =  $controller_dir.'/'.$class.'.php';
-
-        //     if(!koala::__include($class_file,true)){
-        //         koala::throwing('koalaError',"Class file is not found : $class_file");
-        //     }
-
-        //     $class = $controller_dir.'\\'.$class;
-        //     $class = str_replace("/","\\",$class);
-        //     $obj = new $class();
-        //     call_user_func_array(array($obj,$method),$param);
-
-        // }else{
-        //     koala::throwing('koalaError','Controller exception');
-        // }
     }
 
     public static function write($message,$code = 200) {
         self::$_this  = self::instance();
         self::$_this->halt($code,$message);
     }
-
 }
 
 //注册全局对象
@@ -707,6 +751,7 @@ class O{
 
     private static $_obj = []; //对象容器
     private static $_module = [];
+    private static $_table = [];
 
     private function __construct() {}
     private function __destruct() {}
@@ -719,8 +764,18 @@ class O{
     }
 
     public static function instance($_class) {
+
         if(!isset(self::$_obj[$_class])) {
-            self::$_obj[$_class] = new $_class;
+
+            if(strpos($_class,'/') !== false) {
+
+                !koala::fileExists($_class . '.php') && koala::throwing('koalaError',"Class file  is not found : $_class.php");
+                include $_class . '.php';
+                $cls = substr(strrchr($_class, '/'), 1);
+                self::$_obj[$_class] = new $cls;
+            }else{
+                self::$_obj[$_class] = new $_class;
+            }
         }
         return self::$_obj[$_class];
     }
@@ -731,6 +786,14 @@ class O{
             self::$_module[$_class] = new $_class;
         }
         return self::$_module[$_class];
+    }
+
+    public static function table($_class) {
+        if(!isset(self::$_table[$_class])) {
+            $_class = '\table\\' . $_class;
+            self::$_table[$_class] = new $_class;
+        }
+        return self::$_table[$_class];
     }
 
     public static function __callStatic($className,$params) {
@@ -767,6 +830,8 @@ class G {
 //请求
 class Request {
 
+    private static $validOn = false;
+
     private static function __process(&$container,Array $params = []) {
 
         if(empty($params)){
@@ -775,13 +840,21 @@ class Request {
 
         foreach($params as $k => $v){
 
-            if(is_numeric($v)){
+            if(self::$validOn == true && is_callable($v)){
+                $container[$k] = isset($container[$k]) ? $container[$k] : '';
+                $container[$k] = call_user_func($v,$container[$k]);
+            }else if(is_numeric($v)){
                 $container[$k] = isset($container[$k]) ? intval($container[$k]) : $v;
             }else if(is_string($v)){
                 $container[$k] = isset($container[$k]) ? Security::sqlVar($container[$k]) : $v;
             }
         }
         return $container;
+    }
+
+    public static function validateRuleFile($path) {
+        self::$validOn = true;
+        require $path;
     }
 
     public static function get(Array $params = []) {
@@ -810,6 +883,14 @@ class Request {
 
     public static function isPost() {
         return koala::getenv("request_method") == 'POST' ? true : false;
+    }
+
+    public static function header($var) {
+        return koala::getServer($var);
+    }
+
+    public static function isCli() {
+        return koala::getEnv('cli');
     }
 }
 
@@ -913,7 +994,7 @@ class Cache {
         return true;
     }
 
-    public static function load($key) {
+    public static function get($key) {
         return @include_once(Koala::getenv('cache').'/'.$key.'.php');
     }
 
@@ -927,15 +1008,16 @@ class Cache {
     }
 }
 
-
 class Mysql {
 
     private $db = null;
-    public static $debug = false;
+    public $debug = false;
     protected $tableName = ''; //表名
     protected $_where = '';
     protected $_raw = '';
     private $_params = [];
+
+    private $var = '';
 
     public function __construct($params) {
         $this->_params = $params;
@@ -959,6 +1041,24 @@ class Mysql {
         $_db->select_db($opt['database']); 
         return $_db;
     }
+
+    public function field(Array $data) {
+        $this->data =  $data;
+        return $this;
+    }
+
+    public function __get($name) {
+        $this->var = $name;
+        return $this;
+    }
+
+    public function _int() {
+        return isset($this->data[$this->var]) ? $this->data[$this->var]  : 0;
+    }
+
+    public function _string() {
+        return isset($this->data[$this->var]) ? $this->data[$this->var]  : '';
+    }
     
     public function selectDb($_db){
         $this->resource()->select_db($_db);
@@ -966,16 +1066,14 @@ class Mysql {
 
     public function query($sql) {
 
-        if(self::$debug) {
-            print_r(debug_backtrace());
-            echo("<pre>".$sql."</pre>");
-            exit;
-        }
-
         if(!($result = $this->resource()->query($sql))){
             koala::throwing('koalaError',$this->resource()->error);
         }
         return $result;
+    }
+
+    public function affected_rows() {
+        return $this->resource()->affected_rows;
     }
 
     public function num_rows($sql) {
@@ -983,11 +1081,9 @@ class Mysql {
         return $result->num_rows;
     }
 
-
     public function fetch_assoc($resource) {
         return $resource->fetch_assoc();
     }
-
 
     public function fetchAll($sql){
         $result = array();
@@ -997,7 +1093,6 @@ class Mysql {
         }
         return $result;
     }
-
 
     public function getOne($sql) {
         $rs = $this->query($sql . ' LIMIT 1');
@@ -1037,8 +1132,16 @@ class Mysql {
     public function insert(Array $data) {
 
         list($field,$value) = $this->__getWhereField($data);
-        
-        $this->query(sprintf("INSERT INTO %s (%s) VALUES(%s)",$this->getTable(),$field,$value));
+
+        $sql = sprintf("INSERT INTO %s (%s) VALUES(%s)",$this->getTable(),$field,$value);
+
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }
+
+        $this->query($sql);
+
         return $this->insert_id();
     }
 
@@ -1049,6 +1152,42 @@ class Mysql {
         $this->_where = ' WHERE ' . vsprintf($templet,$args);
 
         return $this;
+    }
+
+    public function _and() {
+        $args = func_get_args();
+        $templet = array_shift($args);
+
+        $this->_where = $this->_where . ' AND ' . vsprintf($templet,$args);
+
+        return $this;
+    }
+
+    public function _or() {
+        $args = func_get_args();
+        $templet = array_shift($args);
+
+        $this->_where = $this->_where . ' OR ' . vsprintf($templet,$args);
+
+        return $this;
+    }
+
+    public function desc() {
+        $arr = func_get_args();
+        $this->_where = $this->_where . ' ORDER BY ' . $this->__getField($arr) . ' DESC';
+        return $this;      
+    }
+
+    public function asc() {
+        $arr = func_get_args();
+        $this->_where = $this->_where . ' ORDER BY ' . $this->__getField($arr) . ' ASC';
+        return $this;  
+    }
+
+    public function group() {
+        $arr = func_get_args();
+        $this->_where = $this->_where . ' GROUP BY ' . $this->__getField($arr);
+        return $this;  
     }
 
     private function __getWhere() {
@@ -1069,19 +1208,36 @@ class Mysql {
     public function delete() {
 
         $this->__isThereWhere();
-        $this->query(sprintf("DELETE FROM %s %s",$this->getTable(),$this->__getWhere()));
+        $sql = sprintf("DELETE FROM %s %s",$this->getTable(),$this->__getWhere());
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }
+        $result = $this->query($sql);
         $this->__clearWhere();
+        return $result;
     }
 
     public function has() {
         $this->__isThereWhere();
-        $rowsAmount = $this->num_rows(sprintf("SELECT * FROM  %s %s",$this->getTable(),$this->__getWhere()));
+
+        $sql = sprintf("SELECT * FROM  %s %s",$this->getTable(),$this->__getWhere());
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }        
+        $rowsAmount = $this->num_rows($sql);
         $this->__clearWhere();  
         return $rowsAmount;
     }
 
     public function count() {
-        $row = $this->getFirstField(sprintf("SELECT Count(*) FROM  %s %s",$this->getTable(),$this->__getWhere()));
+        $sql = sprintf("SELECT Count(*) FROM  %s %s",$this->getTable(),$this->__getWhere());
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }  
+        $row = $this->getFirstField($sql);
         $this->__clearWhere();  
         return $row;        
     }
@@ -1105,7 +1261,14 @@ class Mysql {
 
         $field = is_array($fields) ? $this->__getField($fields) : '*';
 
-        $result = $this->fetchAll(sprintf("SELECT %s FROM %s %s",$field,$this->getTable(),$this->__getWhere()));
+        $sql = sprintf("SELECT %s FROM %s %s",$field,$this->getTable(),$this->__getWhere());
+
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }  
+
+        $result = $this->fetchAll($sql);
         $this->__clearWhere();
 
         return $result;
@@ -1114,7 +1277,13 @@ class Mysql {
     public function findOne($fields='') {
         $field = is_array($fields) ? $this->__getField($fields) : '*';
 
-        $result = $this->getOne(sprintf("SELECT %s FROM %s %s",$field,$this->getTable(),$this->__getWhere()));
+        $sql = sprintf("SELECT %s FROM %s %s",$field,$this->getTable(),$this->__getWhere());
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }  
+
+        $result = $this->getOne($sql);
         $this->__clearWhere();
 
         return $result;
@@ -1131,24 +1300,29 @@ class Mysql {
 
             $pair = vsprintf($data,$args);
         }
-        
-        $this->query(sprintf("UPDATE %s SET  %s %s",$this->getTable(),$pair,$this->__getWhere()));
-        $this->__clearWhere();
 
+        $sql = sprintf("UPDATE %s SET  %s %s",$this->getTable(),$pair,$this->__getWhere());
+        if($this->debug){
+            print($sql);exit;
+            $this->debug = false;
+        }  
+
+        return $this->query($sql);
+        $this->__clearWhere();
     }
 
     private function __isThereWhere() {
-        if(!$this->_where){
+        if(!$this->_where && !$this->_raw){
             koala::throwing('koalaError','皇上~您忘记写 sql的条件了: where');
         }
     }
 
     private function __clearWhere() {
-        $this->_where = '';
+        $this->_where = $this->_raw = '';
     }
 
     private function __sqlType($param) {
-        if(is_string($param)) {
+        if(!is_numeric($param)) {
             return "'".$param."'";
         }
         return $param;
@@ -1210,7 +1384,7 @@ trait dbServer {
     }   
 }
 
-class Table extends Mysql { 
+class T extends Mysql { 
     public function __construct() { }
 
     use dbServer;
