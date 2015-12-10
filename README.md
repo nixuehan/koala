@@ -120,12 +120,12 @@ Koala::route([
 Koala::filter([
 
     'auth' => function() {
-        $get = Koala::$app->Request()->get([
+        $get = Koala::$app->Request->get([
             'user' => ''
         ]);
 
         if($get['user'] != 'nixuehan') {
-            Koala::$app->Response()->halt(500,"不允许");
+            Koala::$app->Response->halt(500,"不允许");
         }   
     }
 
@@ -144,19 +144,19 @@ Koala::route([
 Koala::filter([
 
     'post' => function(){
-        if(!Koala::$app->Request()->isPost){
-            Koala::$app->Response()->halt(500,"不允许");
+        if(!Koala::$app->Request->isPost){
+            Koala::$app->Response->halt(500,"不允许");
         }
     },
 
 
     'auth' => function() {
-        $get = Koala::$app->Request()->get([
+        $get = Koala::$app->Request->get([
             'user' => ''
         ]);
 
         if($get['user'] != 'nixuehan') {
-            Koala::$app->Response()->halt(500,"不允许");
+            Koala::$app->Response->halt(500,"不允许");
         }   
     }
 
@@ -184,7 +184,7 @@ use koala\Koala;
 class Demo extends \Controller{
 
     public function __construct() { 
-        $this->view = Koala::$app->View();
+        $this->view = Koala::$app->View;
     }
 
     /**
@@ -220,18 +220,18 @@ use koala\Koala;
 Koala::filter([
 
     'post' => function(){
-        var_dump(Koala::$app->Request()->isPost);
+        var_dump(Koala::$app->Request->isPost);
         exit;
     },
 
 
     'auth' => function() {
-        $get = Koala::$app->Request()->get([
+        $get = Koala::$app->Request->get([
             'user' => ''
         ]);
 
         if($get['user'] != 'nixuehan') {
-            Koala::$app->Response()->halt(500,"不允许");
+            Koala::$app->Response->halt(500,"不允许");
         }   
     }
 
@@ -276,23 +276,23 @@ throw new \NotFoundException("找不到用户");
 ```php
 var_dump(Koala::$app); //打印下，其实他是个对象
 
-Koala::$app->O() //实例化容器类 class O 
+Koala::$app->O //实例化容器类 class O 
 
-Koala::$app->Response() //实例化输出类  class Response
+Koala::$app->Response //实例化输出类  class Response
 
-Koala::$app->Request() //实例化请求类 class Request
+Koala::$app->Request //实例化请求类 class Request
 
-Koala::$app->Config()   //实例化配置类 class Config
+Koala::$app->Config //实例化配置类 class Config
 
-Koala::$app->View() //实例化模板类  class View
+Koala::$app->View //实例化模板类  class View
 
-Koala::$app->Cookie() //实例化cookie类 class Cookie
+Koala::$app->Cookie //实例化cookie类 class Cookie
 
-Koala::$app->Session() //实例化session类 class Session
+Koala::$app->Session //实例化session类 class Session
 
-Koala::$app->Cache() //实例化文件缓存类 class Cache
+Koala::$app->Cache //实例化文件缓存类 class Cache
 
-Koala::$app->Mysql() //实例化Mysql类 class Mysql
+Koala::$app->Database //实例化Mysql类 class Mysql
 ```
 
 #容器对象 class O
@@ -307,7 +307,7 @@ class Member{
 }
 
 //全局注册对象
-$container = koala::$app->O();
+$container = koala::$app->O;
 
 $container->register('member',function(){
     return new Member;;
@@ -315,7 +315,7 @@ $container->register('member',function(){
 
 
 //还可以这样
-$container = koala::$app->O();
+$container = koala::$app->O;
 
 $container->member = \koala\call(function(){
     return new Member;;
@@ -325,28 +325,28 @@ $container->member = \koala\call(function(){
 然后我们可以在其他地方进行调用
 
 ```php
-koala::$app->O()->member->update();
+koala::$app->O->member->update();
 ```
 
 初始化一些对象时候，我们希望单例。可以这样做
 
 ```php
-$fetch = koala::$app->O()->instance("utils\Fetch");
+$fetch = koala::$app->O->instance("utils\Fetch");
 
-$sms = koala::$app->O()->instance('utils/sms');
+$sms = koala::$app->O->instance('utils/sms');
 ```
 
 Container 容器也提供了一个便捷实例化模块类,表模块类的方法
 
 ```php
-$member = koala::$app->O()->module("member");
+$member = koala::$app->O->module("member");
 $member->signin('asdfasdf');
 ```
 
 当然还有表模块
 
 ```php
-$member = koala::$app->O()->table("member");
+$member = koala::$app->O->table("member");
 $member->signin('asdfasdf');
 ```
 
@@ -355,17 +355,17 @@ $member->signin('asdfasdf');
 全局变量
 
 ```php
-Koala::$app->G()->set('member',[
+Koala::$app->G->set('member',[
     'member_name' => 'yeziqing',
     'member_age' => 18
 ]);
 
 
-Koala::$app->G()->get(); //返回所有
+Koala::$app->G->get(); //返回所有
 
-Koala::$app->G()->get('member'); 
+Koala::$app->G->get('member'); 
 
-Koala::$app->G()->get('member','member_age');
+Koala::$app->G->get('member','member_age');
 
 
 #配置文件 class Config
@@ -373,7 +373,7 @@ Koala::$app->G()->get('member','member_age');
 加载配置文件
 
 ```php
-koala::$app->Config()->load("application");
+koala::$app->Config->load("application");
 ```
 
 配置文件
@@ -399,27 +399,27 @@ return [
 当然我们也可以一次加载多个配置文件
 
 ```php
-koala::$app->Config()->load("application");
-koala::$app->Config()->load("me");
+koala::$app->Config->load("application");
+koala::$app->Config->load("me");
 ```
 
 获取配置选项 
 
 ```php
 
-$host = koala::$app->Config()->get('mysql','host','127.0.0.1')  //加个默认值
+$host = koala::$app->Config->get('mysql','host','127.0.0.1')  //加个默认值
 
-$host = koala::$app->Config()->get('mysql','host')
+$host = koala::$app->Config->get('mysql','host')
 
-$host = koala::$app->Config()->get('mysql')
+$host = koala::$app->Config->get('mysql')
 
-$opt = koala::$app->Config()->get()
+$opt = koala::$app->Config->get()
 ```
 
 动态添加配置选项
 
 ```php
-koala::$app->Config()->set('memcache','charset',"t_t!");
+koala::$app->Config->set('memcache','charset',"t_t!");
 ```
 
 # GET、POST、Files请求  class Request
@@ -427,20 +427,20 @@ koala::$app->Config()->set('memcache','charset',"t_t!");
 做了基本防SQL注入。初始类变量类型很重要，因为最后变量类型就是初始化时候定的。
 
 ```php
-$get = Koala::$app->Request()->get([
+$get = Koala::$app->Request->get([
     'userid' => 0,  // $_GET['userid'] 被强制转成数字类型 
     'user' => '', //字符串类型的值
 ]);
 ```
 上传文件
 ```php
-$file = Koala::$app->Request()->file();
+$file = Koala::$app->Request->file();
 ```
 
 获取post 提交
 
 ```php
-Koala::$app->Request()->validateFilePath('validate.php'); //验证文件路径指定
+Koala::$app->Request->validateFilePath('validate.php'); //验证文件路径指定
 
 
 //validate.php里定义验证函数
@@ -456,41 +456,41 @@ function mobile($phone) {
 }
 
 
-$post = Koala::$app->Request()->post([
+$post = Koala::$app->Request->post([
     'userid' => "\Valid\mobile",  //验证是否是手机号
     'love' => [] //数组形式传值
 ]);
 
 //获取头信息
-$server = Koala::$app->Request()->header();
+$server = Koala::$app->Request->header();
 
-$server = Koala::$app->Request()->header('SERVER_ADDR');
+$server = Koala::$app->Request->header('SERVER_ADDR');
 
-Koala::$app->Request()->isPost; //是否是post
+Koala::$app->Request->isPost; //是否是post
 
-Koala::$app->Request()->cli; //是否是cli
+Koala::$app->Request->cli; //是否是cli
 
-Koala::$app->Request()->ip; //请求ip
+Koala::$app->Request->ip; //请求ip
 
 ```
 
 #输出  class Response
 
 ```php
-Koala::$app->Response()->json(['userid'=>23]); //输出 json
+Koala::$app->Response->json(['userid'=>23]); //输出 json
 ```
 
 跳转
 
 ```php
-Koala::$app->Response()->redirect('/test'); //内部跳
-Koala::$app->Response()->redirect('http://www.baidu.com');
+Koala::$app->Response->redirect('/test'); //内部跳
+Koala::$app->Response->redirect('http://www.baidu.com');
 ```
 
 一般输出
 
 ```php
-Koala::$app->Response()->output('wakaka');
+Koala::$app->Response->output('wakaka');
 ```
 
 
@@ -517,7 +517,7 @@ Koala::$app->Response()->output('wakaka');
 3\. 在逻辑里输出
 
 ```php
-Koala::$app->View()->layout('kk',[
+Koala::$app->View->layout('kk',[
     'myname' => 'nixuehan'
 ]);
 ```
@@ -533,7 +533,7 @@ Koala::$app->View()->layout('kk',[
 想改变默认的母布局文件名或全局子布局的内容变量名:
 
 ```php
-Koala::$app->View()->opt([
+Koala::$app->View->opt([
     'layout' => 'base',  //母布局文件名 默认: main.layout.php
     'vars' => [     //全局子布局变量
         'myname' => 'nixuehan'
@@ -546,10 +546,10 @@ Koala::$app->View()->opt([
 直接输出模板文件
 
 ```php
-Koala::$app->View()->render("test");
+Koala::$app->View->render("test");
 
 // __myname 这个变量进行 html实体化。 防xss
-Koala::$app->View()->render("test",[
+Koala::$app->View->render("test",[
     '__myname' => 'nixuehan'   // 带双斜杠开头的模板变量~ 会进行 htmlspecialchars 有效防xss
 ]);
 ```
@@ -570,7 +570,7 @@ Koala::route([
 
 ```php
 public function f1() {
-    Koala::$app->View()->render("f1");
+    Koala::$app->View->render("f1");
 }
 ```
 
@@ -579,13 +579,13 @@ public function f1() {
 ```php
 <?php use koala\Koala;?>
 test la
-<?php Koala::$app->View()->render("jjyy");?>
+<?php Koala::$app->View->render("jjyy");?>
 ```
 
 组件
 ```php
 //signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
-Koala::$app->View()->widget('signin>>main->profile'); 
+Koala::$app->View->widget('signin>>main->profile'); 
 ```
 
 csrf防御
@@ -602,14 +602,14 @@ $csrf = Html::csrf(); //放到表单里
 
 控制器判断
 ```php
-$request = Koala::$app->Request()
+$request = Koala::$app->Request
 $request->checkCsrf()
 ```
 
 #会话 class Session
 
 ```php
-$session = Koala::$app->Session();
+$session = Koala::$app->Session;
 $session->start(function(){
     ini_set('session.save_hander', 'memcache');
     ini_set('session.save_path', 'tcp://127.0.0.1:11211');
@@ -633,20 +633,20 @@ $session->clear();
 #cookie class Cookie
 
 ```php
-Koala::$app->Cookie()->opt([
+Koala::$app->Cookie->opt([
     'domain' => '.baidu.com',
     'secure' => false,
     'httponly' => true
 ]);
 
 
-$all = Koala::$app->Cookie()->get();
+$all = Koala::$app->Cookie->get();
 
-$myname = Koala::$app->Cookie()->get('myname');
+$myname = Koala::$app->Cookie->get('myname');
 
-Koala::$app->Cookie()->set('myname','nixuehan',536000);
+Koala::$app->Cookie->set('myname','nixuehan',536000);
 
-Koala::$app->Cookie()->del('myname');
+Koala::$app->Cookie->del('myname');
 ```
 
 #安全方面主要是 sql注入和xss  class Security
@@ -666,7 +666,7 @@ Security::htmlVar($msg);
 
 ```php
 
-$cache = Koala::$app->Cache();
+$cache = Koala::$app->Cache;
 
 if(!$cache->build('xxoo',['xx' => 23234])) {
     exit('error');
@@ -686,12 +686,12 @@ $cache->delete('xxoo');
 
 ```php
 //增量
-Koala::$app->Log()
+Koala::$app->Log
            ->path("core") //日志文件名
            ->write("lllll");
 
 //新建
-Koala::$app->Log()
+Koala::$app->Log
            ->path("core")
            ->put("lllll");  
 ```
@@ -717,7 +717,7 @@ Koala::finish(function(){
 
 ```php
 Koala::init(function(){
-    Koala::$app->Database()->getConnection('db',function(){
+    Koala::$app->Database->getConnection('db',function(){
         $opt = Koala::$app->Config()->get('mysql');
         return new Mysql([
             'host'      => $opt['host'],
@@ -736,7 +736,7 @@ Koala::init(function(){
 
 ```php
 Koala::init(function(){
-    Koala::$app->Database()->getConnection('db',function(){
+    Koala::$app->Database->getConnection('db',function(){
         $opt = Koala::$app->Config()->get('mysql');
         return new Mysql([
             'host'      => $opt['host'],
@@ -765,7 +765,7 @@ class Member extends \Module{
 }
 
 //控制器里调用
-Koala::$app->O()
+Koala::$app->O
            ->module('member')
            ->infoByMemberid();
 ```
@@ -868,20 +868,20 @@ $this->db('readable')->table('forms')
 遇到复杂的SQL 就不适合ORM了。 ps: 记得需要自己防sql注入
 
 ```php
-Koala::$app->Database()->writable->query("INSERT INTO forms VALUES('a','b')");
-Koala::$app->Database()->writable->insert_id();
+Koala::$app->Database->writable->query("INSERT INTO forms VALUES('a','b')");
+Koala::$app->Database->writable->insert_id();
 ```
 
 ```php
-Koala::$app->Database()->writable->query("DELETE FROM forms");
+Koala::$app->Database->writable->query("DELETE FROM forms");
 ```
 
 ```php
-Koala::$app->Database()->writable->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
+Koala::$app->Database->writable->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
 ```
 
 ```php
-Koala::$app->Database()->writable->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
+Koala::$app->Database->writable->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
 ```
 
 遇到更复杂的需求，需要更底层一点的mysqli 方法。比如 事务
