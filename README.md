@@ -780,15 +780,20 @@ $this->db('readable')->table('company')
 ```
 
 ```php
-$this->db('writable')->table('company')
-                  ->where("access_token='%s'",$access_token) 
-                  ->delete();
+$this->db()->table('member')
+            ->where("mobile = %s",$mobile)
+            ->has();
 ```
 
 ```php
-$this->db('readable')->table('company')
-                 ->where("access_token='%s'",$access_token)
-                 ->has()
+$this->db()->table('member')
+        ->where('memberid = %d',$memberid)
+        ->update([
+            'username' => $data['username'],
+            'gender' => $data['gender'],
+            'avatar' => $data['avatar'],
+            'cityid' => $data['cityid']
+        ]);
 ```
 
 ```php
@@ -812,11 +817,43 @@ $this->db('writable')->table('company')
                   ]);
 ```
 
+```php
+$this->db('writable')->table('company')
+                  ->where("access_token='%s'",$access_token)
+                  ->_and("tid=%d",$tid)
+                  ->update([
+                    'access_token' => 'asdfe',
+                    'age' => 20
+                  ]);
+```
+
+```php
+$this->db('writable')->table('company')
+                  ->where("access_token='%s'",$access_token)
+                  ->_or("tid=%d",$tid)
+                  ->update([
+                    'access_token' => 'asdfe',
+                    'age' => 20
+                  ]);
+```
 
 ```php
 $this->db('readable')->table('forms')
-                 ->raw('ORDER BY pc_pv DESC')
+                 ->desc(['tid'])
                  ->limit(2, 10)
+                 ->find();
+```
+
+```php
+$this->db('readable')->table('forms')
+                 ->asc(['tid'])
+                 ->limit(2, 10)
+                 ->find();
+```
+
+```php
+$this->db('readable')->table('forms')
+                 ->group(['tid'])
                  ->find();
 ```
 
