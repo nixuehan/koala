@@ -769,7 +769,7 @@ Koala::$app->O()
            ->infoByMemberid();
 ```
 
-内置的ORM 各种操作展示
+内置的ORM 在 module 里各种操作展示
 
 ```php
 $this->db('readable')->table('company')
@@ -844,12 +844,6 @@ Koala::$app->Database()->writable->fetchAll("SELECT * FROM forms WHERE access_to
 
 ```php
 Koala::$app->Database()->writable->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
-```
-
-```php
-Koala::$app->Database()->writable->table('forms_statistics')
-                    ->where("fid = %d AND ps_year = %d AND ps_month = %d AND ps_day = %d AND ps_hour = %d",$fid,$year,$month,$day,$hour)
-                    ->update(sprintf("%s = %s + 1",$field,$field));
 ```
 
 遇到更复杂的需求，需要更底层一点的mysqli 方法。比如 事务
