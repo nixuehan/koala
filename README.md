@@ -582,9 +582,10 @@ test la
 <?php Koala::$app->View()->render("jjyy");?>
 ```
 
-组件模式
+组件
 ```php
-Koala::$app->View()->widget('signin>>main->profile'); //  signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
+//signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
+Koala::$app->View()->widget('signin>>main->profile'); 
 ```
 
 csrf防御
