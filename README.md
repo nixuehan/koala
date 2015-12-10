@@ -8,6 +8,8 @@ controller 控制器
 
 module  数据模块
 
+static 静态文件
+
 views  模板
 
 index.php  入口文件
@@ -17,9 +19,8 @@ koala.php  koala框架
 首先得有一个启动文件 index.php ，然后只需要几行代码，就可以驱动这个框架：
 
 ```php
+require './koala.php';
 use koala\Koala;
-
-require 'koala.php';
 
 Koala::route([
     '/' => 'demo->test',
@@ -77,6 +78,19 @@ Koala::route([
 Koala::go();
 ```
 
+初始化参数可选
+```php
+Koala::go([
+    'controller_dir' => 'mygod',  //自定义控制器目录
+    'view_dir'       => '模板目录', //自定义模板目录
+    'mode'       => 'dev', // 运行模式 dev or online ...
+    'cache'      => 'data/cache', //文件缓存目录 默认 cache
+    'root_dir' => __DIR__, //当要使用cli，就要设置网站根目录
+    'log' => 'log' //日志存储目录路径
+]);
+
+```
+
 #路由
 
 路由分两部分，url地址和它所对应的控制器方法。url支持正则。路由规则建议用独立的文件 比如 route.php 来管理。
@@ -92,20 +106,68 @@ Koala::route([
 ]);
 ```
 
-#控制器
+带拦截器的路由
+```php
+Koala::route([
+    'auth' => [
+        '/test' => 'demo->test1',
+        '/admin/member' => 'admin/member->test1',
+        '/test/(?P<doubi>[0-9]+)' => 'demo->test2'
+    ]
+]);
 
-路由对应的就是控制器。那么我们看下控制器是怎么写的，就拿上面的 两个路由  '/test' 和 '/admin/member' 做为例子
 
-控制器默认目录是 controller。 可以通过下面方式进行一些设置。
+Koala::filter([
+
+    'auth' => function() {
+        $get = Koala::$app->Request()->get([
+            'user' => ''
+        ]);
+
+        if($get['user'] != 'nixuehan') {
+            Koala::$app->Response()->halt(500,"不允许");
+        }   
+    }
+
+]);
+```
+
+拦截器可以多个
 
 ```php
-Koala::go([
-    'controller_dir' => 'mygod',  //控制器目录
-    'view_dir' 		 => '模板目录', //模板目录
-    'mode'		 => 'dev', // 运行模式 dev or online ...
-    'cache'      => 'data/cache', //cache 目录 默认 cache
-    'root_dir' => __DIR__ //当要使用cli，就要设置网站根目录
+Koala::route([
+    'post >> auth' => [
+        '/user/signin' => 'user->signin'
+    ]
 ]);
+
+Koala::filter([
+
+    'post' => function(){
+        if(!Koala::$app->Request()->isPost){
+            Koala::$app->Response()->halt(500,"不允许");
+        }
+    },
+
+
+    'auth' => function() {
+        $get = Koala::$app->Request()->get([
+            'user' => ''
+        ]);
+
+        if($get['user'] != 'nixuehan') {
+            Koala::$app->Response()->halt(500,"不允许");
+        }   
+    }
+
+]);
+```
+
+#控制器
+
+路由对应的就是控制器。那么我们看下控制器是怎么写的，就拿两个路由  '/test' 和 '/admin/member' 做为例子
+
+控制器默认目录是 controller。 可以通过下面方式进行一些设置。
 
 ```
 
@@ -113,20 +175,23 @@ Koala::go([
 
 ```php
 namespace controller;
-use koala\Response;
 
-class Demo{
+use koala\Koala;
 
-    public function index() {
-        Response::write('index');
+/**
+ * 用户
+ */
+class Demo extends \Controller{
+
+    public function __construct() { 
+        $this->view = Koala::$app->View();
     }
 
-    public function test1() {
-        Response::write('test1');
-    }
-
-    public function test2($age) {
-        Response::write('test2' . $age);
+    /**
+     * 登录
+     */
+    public function signin() {
+        echo('ddd');
     }
 }
 ```
@@ -135,12 +200,11 @@ class Demo{
 
 ```php
 namespace controller\admin;
-use koala\Response;
 
-class Member{
+class Member extends \Controller{
 
     public function signin() {
-        Response::write('signin');
+        echo('d');
     }
 }
 ```
@@ -150,28 +214,31 @@ class Member{
 在路由上，其实我们可以控制得更多。比如我们要控制这个路由，只能是POST请求。我们可以这样做，首先在路由书写上
 
 ```php
-Koala::route([
-    '/' => 'demo->index',
+use koala\Koala;
 
-    'post' => [
-        '/check' => 'demo->check'
-    ]
+
+Koala::filter([
+
+    'post' => function(){
+        var_dump(Koala::$app->Request()->isPost);
+        exit;
+    },
+
+
+    'auth' => function() {
+        $get = Koala::$app->Request()->get([
+            'user' => ''
+        ]);
+
+        if($get['user'] != 'nixuehan') {
+            Koala::$app->Response()->halt(500,"不允许");
+        }   
+    }
 
 ]);
 ```
 
-然后在  koala::go() 之前，进行 'post' 的 过滤器注册:
-
-```php
-koala::filter('post',function(){
-    return Request::isPost();
-});
-```
-
-
 在进入 '/check' 之前会先执行'post' 过滤器的匿名函数。这个很好理解是吧。
-
-
 一个路由是支持多个过滤器的，比如：
 
 
@@ -185,123 +252,128 @@ Koala::route([
 ]);
 ```
 
-先执行 post 过滤器 再执行 xxoo  数量不限制
-
-```php
-koala::filter('post',function(){
-    if(!Request::isPost()){
-        Response::json(['error' => YES]);
-    }
-});
-
-koala::filter('xxoo',function(){
-    echo('jj');
-});
-```
+先执行 post 过滤器 再执行 xxoo  过滤器数量不限制
 
 
 #异常拦截
 
-提供一个重写内置异常的办法。 notFound 、koalaError
-
-常见我们需要一个好看的 404页面。 其他的异常，在  Koala::go(['mode' => 'online']) 时，而又没有重置方法的时候会直接中止程序运行并输出内置错误页面
-
 ```php
-koala::map('notFound',function(){
-    include 'errors/404.php';
-});
+class NotFoundException extends Exception{ } 
+
+Koala::exception([
+    'NotFoundException' => function(){
+        include 'errors/404.php';
+    }
+]);
+
+```
+在我们需要抛出错误的地方。抛出自定义的异常
+```php
+throw new \NotFoundException("找不到用户");
 ```
 
+#魔术对象变量. 内置的类如下:
 ```php
-koala::map('koalaError',function(){
-    include 'errors/koalaError.php';
-});
+var_dump(Koala::$app); //打印下，其实他是个对象
+
+Koala::$app->Container() //实例化容器类 class Container 
+
+Koala::$app->Response() //实例化输出类  class Response
+
+Koala::$app->Request() //实例化请求类 class Request
+
+Koala::$app->Config()   //实例化配置类 class Config
+
+Koala::$app->View() //实例化模板类  class View
+
+Koala::$app->Cookie() //实例化cookie类 class Cookie
+
+Koala::$app->Session() //实例化session类 class Session
+
+Koala::$app->Cache() //实例化文件缓存类 class Cache
+
+Koala::$app->Mysql() //实例化Mysql类 class Mysql
 ```
 
-#全局注册对象 class O
+#容器对象 class O
 
 有时候我们需要全局注册一个对象，方便我们在任何控制器、模块里进行共享调用。我们可以在 index.php入口文件里进行注册对象
 
 ```php
-use koala\O;
+class Member{
+    public function update() {
+        return 'okay';
+    }
+}
 
-O::register('fetch',function(){
-    include 'utils/fetch.php';
-    return new \Fetch();
+//全局注册对象
+$container = koala::$app->O();
+
+$container->register('member',function(){
+    return new Member;;
+});
+
+
+//还可以这样
+$container = koala::$app->O();
+
+$container->member = \koala\call(function(){
+    return new Member;;
 });
 ```
 
 然后我们可以在其他地方进行调用
 
 ```php
-O::fetch()->get();
+koala::$app->O()->member->update();
 ```
 
 初始化一些对象时候，我们希望单例。可以这样做
 
 ```php
-$member = O::instance('\module\bbs\member');
+$fetch = koala::$app->O()->instance("utils\Fetch");
 
-$sms = O::instance('utils/sms');
+$sms = koala::$app->O()->instance('utils/sms');
 ```
 
-O 类也提供了一个便捷实例化模块类的方法
+Container 容器也提供了一个便捷实例化模块类,表模块类的方法
 
 ```php
-$member = O::module(bbs\member);
+$member = koala::$app->O()->module("member");
 $member->signin('asdfasdf');
 ```
 
-#事件回调
-
-希望在执行 koala::go() 之前初始化和执行完成后执行一些我们的方法。可以这样做
+当然还有表模块
 
 ```php
-Koala::init(function(){
-    Config::load("config.php");
-});
-
-Koala::finish(function(){
-    echo('xx');
-});
+$member = koala::$app->O()->table("member");
+$member->signin('asdfasdf');
 ```
 
-我们在index.php 启动文件里经常要初始化一些逻辑。那就要这样做
+#全局变量容器 class G
+
+全局变量
 
 ```php
-Koala::init(function(){
-    Config::load("config.php");
+Koala::$app->G()->set('member',[
+    'member_name' => 'yeziqing',
+    'member_age' => 18
+]);
 
-    Database::getConnection('write',function(){
-        $opt = Config::get('mysql');
-        return new Mysql([
-            'host'      => $opt['host'],
-            'user'      => $opt['user'],
-            'passwd'    => $opt['passwd'],
-            'database'  => $opt['database'],
-            'charset'   => $opt['charset']
-        ]);
-    });
 
-    Database::getConnection('read',function(){
-        $opt = Config::get('mysql');
-        return new Mysql([
-            'host'      => $opt['host'],
-            'user'      => $opt['user'],
-            'passwd'    => $opt['passwd'],
-            'database'  => $opt['database'],
-            'charset'   => $opt['charset']
-        ]);
-    });
-});
-```
+Koala::$app->G()->get(); //返回所有
+
+Koala::$app->G()->get('member'); 
+
+Koala::$app->G()->get('member','member_age');
+
 
 #配置文件 class Config
 
 加载配置文件
 
 ```php
-Config::load("config");
+koala::$app->Config()->load("application");
 ```
 
 配置文件
@@ -327,114 +399,113 @@ return [
 当然我们也可以一次加载多个配置文件
 
 ```php
-Config::load("database");
-Config::load("default");
+koala::$app->Config()->load("application");
+koala::$app->Config()->load("me");
 ```
 
 获取配置选项 
 
 ```php
-$host = Config::get('mysql','host');
 
-$host = Config::get('mysql');
+$host = koala::$app->Config()->get('mysql','host','127.0.0.1')  //加个默认值
 
-$conf = Config::get();
+$host = koala::$app->Config()->get('mysql','host')
+
+$host = koala::$app->Config()->get('mysql')
+
+$opt = koala::$app->Config()->get()
 ```
 
 动态添加配置选项
 
 ```php
-Config::set('member','salt','asdfwerwqe');
+koala::$app->Config()->set('memcache','charset',"t_t!");
 ```
 
-#共享变量 class G
-
-模块间传递变量
-
-```php
-G::set('member',[
-    'member_name' => 'yeziqing',
-    'member_age' => 18
-]);
-
-
-G::get(); //返回所有
-
-G::get('member'); 
-
-G::get('member','member_age');
-```
-
-# GET、POST请求  class Request
+# GET、POST、Files请求  class Request
 
 做了基本防SQL注入。初始类变量类型很重要，因为最后变量类型就是初始化时候定的。
 
 ```php
-$post = Request::post([
-    'age' => 0,  // 那么传递过来的 $_POST['age'] = 'test' 也好。类型最后会转成 int
-    'access_token' => ''
-]);
-
-$access_token = $post['access_token'];
-
-
-// /test?access_token=afdadsf
-
-$get = Request::get([
-    'contents' => '',
-    'access_token' => ''
-]);
-
-$access_token = $get['access_token'];
-```
-
-获取上传的文件信息,是没有做安全防护的。最好对 $file['name'] 、和 $file['type'] 进行有害字符过滤和转移
-
-```php
-$file = Request::file();
-```
-
-获取原始的 GET 或者 POST,只做了简单的 注入字符转义
-
-```php
-$get = Request::get();
-
-$post = Request::post();
-```
-
-#安全过滤  class Security
-
-主要两个方法
-
-针对sql处理的
-
-```php
-$get = Security::sqlVar($access_token);
-
-$get = Security::sqlVar([
-    'age' => 19,
-    'content' => 'swiddki'
+$get = Koala::$app->Request()->get([
+    'userid' => 0,  // $_GET['userid'] 被强制转成数字类型 
+    'user' => '', //字符串类型的值
 ]);
 ```
-
-针对模板输出的
-
+上传文件
 ```php
-$content = Security::htmlVar($content);
+$file = Koala::$app->Request()->file();
 ```
 
-#模板  class Response
+获取post 提交
+
+```php
+Koala::$app->Request()->validateFilePath('validate.php'); //验证文件路径指定
+
+
+//validate.php里定义验证函数
+namespace Valid;
+/**
+ * 验证手机号
+ */
+function mobile($phone) {
+    if($phone == '1500778223'){
+        exit('不是手机号');
+    }
+    return $phone;
+}
+
+
+$post = Koala::$app->Request()->post([
+    'userid' => "\Valid\mobile",  //验证是否是手机号
+    'love' => [] //数组形式传值
+]);
+
+//获取头信息
+$server = Koala::$app->Request()->header();
+
+$server = Koala::$app->Request()->header('SERVER_ADDR');
+
+Koala::$app->Request()->isPost; //是否是post
+
+Koala::$app->Request()->cli; //是否是cli
+
+Koala::$app->Request()->ip; //请求ip
+
+```
+
+#输出  class Response
+
+```php
+Koala::$app->Response()->json(['userid'=>23]); //输出 json
+```
+
+跳转
+
+```php
+Koala::$app->Response()->redirect('/test'); //内部跳
+Koala::$app->Response()->redirect('http://www.baidu.com');
+```
+
+一般输出
+
+```php
+Koala::$app->Response()->output('wakaka');
+```
+
+
+#模板  class View
 
 内置了一个简单的php模板。支持两种方式。
 
 模板布局模式
 
-1\. 新建一个母布局  默认名字 : main.layout.php    子布局默认变量名: $layout_contents 存放的是 子布局的内容。
+1\. 新建一个母布局  默认名字 : main.layout.php    子布局默认变量名: $layout_content 存放的是 子布局的内容。
 
 ```php
-我是头罗
-<?=$layout_contents?>
-我是尾巴
+头
+<?=$layout_content?>
+尾
 ```
 
 2\. 在新建一个子布局  demo.tpl.php
@@ -446,7 +517,7 @@ $content = Security::htmlVar($content);
 3\. 在逻辑里输出
 
 ```php
-Response::layout('demo',[
+Koala::$app->View()->layout('kk',[
     'myname' => 'nixuehan'
 ]);
 ```
@@ -454,17 +525,19 @@ Response::layout('demo',[
 最后输出
 
 ```php
-我是头罗
+头
 我是nixuehan
-我是尾巴
+尾
 ```
 
-想改变默认的母布局文件名或子布局的内容变量名。可以这样做
+想改变默认的母布局文件名或全局子布局的内容变量名:
 
 ```php
-Response::init([
-    'layout' => 'base',
-    'layout_contents' => 'layout_var'
+Koala::$app->View()->opt([
+    'layout' => 'base',  //母布局文件名 默认: main.layout.php
+    'vars' => [     //全局子布局变量
+        'myname' => 'nixuehan'
+    ]
 ]);
 ```
 
@@ -473,13 +546,11 @@ Response::init([
 直接输出模板文件
 
 ```php
-Response::render('demo',[
-    'myname' => 'nixuehan'
-]);
+Koala::$app->View()->render("test");
 
 // __myname 这个变量进行 html实体化。 防xss
-Response::render('demo',[
-    '__myname' => 'nixuehan'
+Koala::$app->View()->render("test",[
+    '__myname' => 'nixuehan'   // 带双斜杠开头的模板变量~ 会进行 htmlspecialchars 有效防xss
 ]);
 ```
 
@@ -499,55 +570,45 @@ Koala::route([
 
 ```php
 public function f1() {
-    Response::render('f1');
+    Koala::$app->View()->render("f1");
 }
 ```
 
 4\. 然后其他模板里面调用
 
 ```php
-use koala\Response
-
-Response::fragments('demo->f1')
-
-我是<?=$myname?>
+<?php use koala\Koala;?>
+test la
+<?php Koala::$app->View()->render("jjyy");?>
 ```
 
-存在过滤器
+组件模式
 ```php
-Response::fragments('signin:::main->profile'); //  signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
+Koala::$app->View()->widget('signin>>main->profile'); //  signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
 ```
 
-模板参数设置
-Response::viewOpt([
-    'globals' => [
-        'myname' => 'nixuehan'   //可在所有模板获取此变量
-    ]
-])
-
-
-输出json
-
+csrf防御
 ```php
-Response::json(['myname' => 'yeziqing','age' => 18]);
+Koala::go([
+    'csrf' = true
+]);
 ```
 
-跳转
-
+模板这里
 ```php
-Response::redirect('/test');
+$csrf = Html::csrf(); //放到表单里
 ```
 
-一般输出
-
+控制器判断
 ```php
-Response::write('wakaka');
+$request = Koala::$app->Request()
+$request->checkCsrf()
 ```
 
 #会话 class Session
 
 ```php
-$session = new Session;
+$session = Koala::$app->Session();
 $session->start(function(){
     ini_set('session.save_hander', 'memcache');
     ini_set('session.save_path', 'tcp://127.0.0.1:11211');
@@ -557,63 +618,106 @@ $session->start(function(){
 $session->get('xxoo');
 
 $session->set('xxoo','jjyy');
+
+$session->set('xxoo',[
+    'a' => 233,
+    'b' => 'sdsd'
+]);
+
+$session->del('xxoo');
+
+$session->clear();
 ```
 
-#数据模块
+#cookie class Cookie
 
-一般我们是不会在控制器里面写数据库操作逻辑的。推荐这样
-
-在 module 目录里建一个数据模块文件。 注意: 文件名和类名要相同
 ```php
-namespace module;
+Koala::$app->Cookie()->opt([
+    'domain' => '.baidu.com',
+    'secure' => false,
+    'httponly' => true
+]);
 
-use koala\Config;
-use koala\Module;
 
-class Company extends Module{
+$all = Koala::$app->Cookie()->get();
 
-    public function authorization($access_token) {
-      return $this->db()->table('company')
-                             ->where("access_token='%s'",$access_token)
-                             ->findOne();
-      
-    }
+$myname = Koala::$app->Cookie()->get('myname');
+
+Koala::$app->Cookie()->set('myname','nixuehan',536000);
+
+Koala::$app->Cookie()->del('myname');
+```
+
+#安全方面主要是 sql注入和xss  class Security
+
+```php
+$tid = Security::sqlVar($tid);
+
+$data = Security::sqlVar([
+    'age' => 19,
+    'content' => 'swiddki'
+]);
+
+Security::htmlVar($msg);
+```
+
+#简单的文件缓存 class Cache
+
+```php
+
+$cache = Koala::$app->Cache();
+
+if(!$cache->build('xxoo',['xx' => 23234])) {
+    exit('error');
 }
+
+$xxoo = $cache->get('xxoo');
+
+$cache->delete('xxoo');
 ```
 
-然后我们就可以在控制器里调用，不需要 提前include 数据模块文件。 ps:其他任何符合这样规则的类文件，都可以这样直接调用
+#日志文件 class Log
+
+首先要在 Koala::go([
+    'log' => 'log' //日志目录
+])
+
 
 ```php
-$company = new \module\company();
+//增量
+Koala::$app->Log()
+           ->path("core") //日志文件名
+           ->write("lllll");
+
+//新建
+Koala::$app->Log()
+           ->path("core")
+           ->put("lllll");  
 ```
 
-但如果能单例那更好哦。所以，我们一般这样用。这样永远只有一个实例
+#事件回调
 
+希望在执行 koala::go() 之前初始化和执行完成后执行一些我们的方法。可以这样做
+
+index.php文件
 ```php
-$session = O::instance('\module\Company');
+//进入控制器之前
+Koala::init(function(){
+    //可以在这里做一些初始化的工作
+});
+
+//执行完控制器之后
+Koala::finish(function(){
+    echo('the end');
+});
 ```
 
-#简单的缓存缓存 class Cache
-
-```php
-if(!Cache::build('xxoo',['xx' => 23234])) {
-    Response::write('false');
-}
-
-Cache::delete('xxoo');
-
-$xxoo = Cache::load('xxoo');
-```
-
-#数据库
-
-1\.首先连接数据库。我们开两个连接 读写分离
+我们在index.php 启动文件里经常要初始化一些逻辑。那就要这样做
 
 ```php
 Koala::init(function(){
-
-    Database::getConnection('writable',function(){
-        $opt = Config::get('mysql');
+    Koala::$app->Database()->getConnection('db',function(){
+        $opt = Koala::$app->Config()->get('mysql');
         return new Mysql([
             'host'      => $opt['host'],
             'user'      => $opt['user'],
@@ -622,9 +726,17 @@ Koala::init(function(){
             'charset'   => $opt['charset']
         ]);
     });
+});
+```
 
-    Database::getConnection('readable',function(){
-        $opt = Config::get('mysql');
+#数据库
+
+1\.首先连接数据库。我们开两个连接 读写分离
+
+```php
+Koala::init(function(){
+    Koala::$app->Database()->getConnection('db',function(){
+        $opt = Koala::$app->Config()->get('mysql');
         return new Mysql([
             'host'      => $opt['host'],
             'user'      => $opt['user'],
@@ -641,18 +753,20 @@ Koala::init(function(){
 ```php
 namespace module\bbs;
 
-use koala\Config;
-use koala\Module;
-
-class Member extends Module{
+class Member extends \Module{
 
     public function signin($access_token) {
-      return $this->db('readable')->table('company')
+      return $this->db()->table('company')
                              ->where("access_token='%s'",$access_token)
                              ->findOne();
       
     }
 }
+
+//控制器里调用
+Koala::$app->O()
+           ->module('member')
+           ->infoByMemberid();
 ```
 
 内置的ORM 各种操作展示
@@ -716,24 +830,24 @@ $this->db('readable')->table('forms')
 遇到复杂的SQL 就不适合ORM了。 ps: 记得需要自己防sql注入
 
 ```php
-Database::writable()->query("INSERT INTO forms VALUES('a','b')");
-Database::writable()->insert_id();
+Koala::$app->Database()->writable->query("INSERT INTO forms VALUES('a','b')");
+Koala::$app->Database()->writable->insert_id();
 ```
 
 ```php
-Database::writable()->query("DELETE FROM forms");
+Koala::$app->Database()->writable->query("DELETE FROM forms");
 ```
 
 ```php
-Database::readable()->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
+Koala::$app->Database()->writable->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
 ```
 
 ```php
-Database::readable()->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
+Koala::$app->Database()->writable->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
 ```
 
 ```php
-Database::writable()->table('forms_statistics')
+Koala::$app->Database()->writable->table('forms_statistics')
                     ->where("fid = %d AND ps_year = %d AND ps_month = %d AND ps_day = %d AND ps_hour = %d",$fid,$year,$month,$day,$hour)
                     ->update(sprintf("%s = %s + 1",$field,$field));
 ```
@@ -754,6 +868,6 @@ $db->commit();
 这很简单一样的道理。在服务器上
 
 ```php
-php -f index.php /test 
+php -f index.php /test
 ```
 走的是 '/test' 路由
