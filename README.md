@@ -276,7 +276,7 @@ throw new \NotFoundException("找不到用户");
 ```php
 var_dump(Koala::$app); //打印下，其实他是个对象
 
-Koala::$app->Container() //实例化容器类 class Container 
+Koala::$app->O() //实例化容器类 class O 
 
 Koala::$app->Response() //实例化输出类  class Response
 
