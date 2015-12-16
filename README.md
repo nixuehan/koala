@@ -91,7 +91,7 @@ Koala::go([
 
 ```
 
-#路由
+#定制路由
 
 路由分两部分，url地址和它所对应的控制器方法。url支持正则。路由规则建议用独立的文件 比如 route.php 来管理。
 
@@ -106,62 +106,13 @@ Koala::route([
 ]);
 ```
 
-带拦截器的路由
-```php
-Koala::route([
-    'auth' => [
-        '/test' => 'demo->test1',
-        '/admin/member' => 'admin/member->test1',
-        '/test/(?P<doubi>[0-9]+)' => 'demo->test2'
-    ]
-]);
+还支持自动路由。就是根据 控制器/方法 来自动寻址
 
+比如地址 /admin/member/create
 
-Koala::filter([
+控制器: /admin/member
+方法: create
 
-    'auth' => function() {
-        $get = Koala::$app->Request->get([
-            'user' => ''
-        ]);
-
-        if($get['user'] != 'nixuehan') {
-            Koala::$app->Response->halt(500,"不允许");
-        }   
-    }
-
-]);
-```
-
-拦截器可以多个
-
-```php
-Koala::route([
-    'post >> auth' => [
-        '/user/signin' => 'user->signin'
-    ]
-]);
-
-Koala::filter([
-
-    'post' => function(){
-        if(!Koala::$app->Request->isPost){
-            Koala::$app->Response->halt(500,"不允许");
-        }
-    },
-
-
-    'auth' => function() {
-        $get = Koala::$app->Request->get([
-            'user' => ''
-        ]);
-
-        if($get['user'] != 'nixuehan') {
-            Koala::$app->Response->halt(500,"不允许");
-        }   
-    }
-
-]);
-```
 
 #控制器
 
@@ -216,43 +167,20 @@ class Member extends \Controller{
 ```php
 use koala\Koala;
 
+Koala::filter('post',[
+    'user->' //针对整个 user控制器
+],function() {
+    echo('dddd');
+});
 
-Koala::filter([
-
-    'post' => function(){
-        var_dump(Koala::$app->Request->isPost);
-        exit;
-    },
-
-
-    'auth' => function() {
-        $get = Koala::$app->Request->get([
-            'user' => ''
-        ]);
-
-        if($get['user'] != 'nixuehan') {
-            Koala::$app->Response->halt(500,"不允许");
-        }   
-    }
-
-]);
+Koala::filter('xxoo',[
+    'user->index' //针对控制器user里的index方法
+],function() {
+    echo('xxxxxxx');
+});
 ```
 
-在进入 '/check' 之前会先执行'post' 过滤器的匿名函数。这个很好理解是吧。
-一个路由是支持多个过滤器的，比如：
-
-
-```php
-Koala::route([
-
-    'post >> xxoo' => [
-        '/check' => 'demo->check'
-    ]
-
-]);
-```
-
-先执行 post 过滤器 再执行 xxoo  过滤器数量不限制
+过滤器可以对 控制器或者控制器里的方法进行过滤。一个路由是支持多个过滤器的。
 
 
 #异常拦截

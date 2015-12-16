@@ -19,7 +19,7 @@ set_exception_handler(function($e){
             $e->getMessage(),
             $e->getTraceAsString()
         );
-    Koala::$app->response()->halt(500,$msg);
+    Koala::$app->Response->halt(500,$msg);
 });
 
 class C { }
@@ -61,7 +61,7 @@ class O{
 
             if(strpos($_class,'/') !== false) {
 
-                if(!koala::$app->help()->fileExists($_class . '.php')){
+                if(!koala::$app->help->fileExists($_class . '.php')){
                     throw new KoalaException("Class file  is not found : $_class.php");
                 }
                 include $_class . '.php';
@@ -123,7 +123,7 @@ class App{
         return self::$_O;
     }
 
-    public function __call($className,$params) {
+    public function __get($className) {
         if(!isset(self::$_obj[$className])){
             $cls = __NAMESPACE__ ."\\".$className;
 
@@ -141,6 +141,7 @@ class Koala{
     private static $_filter = [];
     private static $_anchor_before = [];
     private static $_anchor_after = [];
+    private static $_fn = [];
     private static $_o = [];
     public  static $app = NULL;
 
@@ -158,7 +159,7 @@ class Koala{
 
         self::$_env['root_dir'] = !isset($config['root_dir']) ? '' : $config['root_dir'];
         self::$_env['controller_dir'] = !isset($config['controller_dir']) ? 'controller' : $config['controller_dir'];
-        self::$_env['cli'] = PHP_SAPI === 'cli' ? true : false; //是否命令行
+        self::$_env['cli'] = PHP_SAPI === 'cli' ? true : false;
         self::$_env['request_method'] = isset($_SERVER['REQUEST_METHOD']) && !empty($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
         self::$_env['view_dir'] = isset($config['view_dir']) ? $config['view_dir'] : 'views';
         self::$_env['mode'] = isset($config['mode']) ? $config['mode'] : 'dev';
@@ -166,6 +167,12 @@ class Koala{
         self::$_env['log'] = isset($config['log']) ? $config['log'] : '';
         self::$_env['csrf'] = isset($config['csrf']) ? $config['csrf'] : false;
 
+        self::requestUri();
+        
+        $_fn = koala::getInit();
+        if($_fn) $_fn();
+        
+        
         date_default_timezone_set('Asia/Shanghai');
         header("Content-Type: text/html; charset=utf-8");
 
@@ -176,37 +183,25 @@ class Koala{
         unset($_REQUEST);
 
         spl_autoload_register(array(__CLASS__,'classAutoLoadPath'));
-
-
-        $_fn = koala::getInit();
-
-        if($_fn) $_fn();
-
-        foreach(self::$_route as $filter => $data){
-            if(is_array($data)){
-                foreach($data as $regular => $class){
-                    $param = self::__matchControllerMethod($regular);
-                    if(is_array($param)){
-
-                        $filter = str_replace(' ','',$filter);
-
-                        $filters = @explode('>>',$filter);
-
-                        foreach((array)$filters as $t){
-                            $_fn = self::getFilter($t);
-                            is_callable($_fn) && $_fn();
-                        }
-
-                        self::loadController($class,$param);
-                        goto after;
-                    }
-                }
-            }else{
-                $param = self::__matchControllerMethod($filter);
-                if(is_array($param)){
-                    self::loadController($data,$param);
-                    goto after;
-                }
+        
+        $request_uri = trim(self::$_env['request_uri'],"/");
+        
+        if(strpos($request_uri,"/")){
+            $class = substr_replace($request_uri,"->",strrpos($request_uri,"/"),1);
+        }else{
+            $class = $request_uri . "->" . "index";
+        }
+        
+        if(self::autoLoadController($class)){
+            goto after;
+        }
+        
+        //filter
+        foreach(self::$_route as $pattern => $class_method){
+            $param = self::__matchControllerMethod($pattern);
+            if(is_array($param)){
+                self::loadController($class_method,$param);
+                goto after;
             } 
         }
 
@@ -226,7 +221,7 @@ after:
 
         $file = strtolower($class) . '.php';
     
-        if(!self::$app->help()->fileExists($file)) {
+        if(!self::$app->help->fileExists($file)) {
             throw new KoalaException("Class  is not found : $class");
         }
 
@@ -234,7 +229,7 @@ after:
     }
 
     public static function __include($file,$once=false) {
-        if(self::$app->help()->fileExists($file)){
+        if(self::$app->help->fileExists($file)){
             if($once){
                 return include_once($file);
             }else{
@@ -259,12 +254,20 @@ after:
         return isset($_SERVER[$var]) && !empty($_SERVER[$var]) ? $_SERVER[$var] : $default;
     }
 
-    public static function filter(Array $fr) {
-        self::$_filter = $fr;
+    public static function filter($name,Array $fr,callable $fn) {
+        self::$_filter[$name] = $fr;
+        self::$_fn[$name] = $fn;
     }
 
-    public static function getFilter($fr) {
-        return isset(self::$_filter[$fr]) ? self::$_filter[$fr] : false;
+    public static function getFilter($class_method) {
+        array_walk(self::$_filter,function($clme,$name) use ($class_method){
+            foreach($clme as $cm){
+                if(FALSE !== strpos($class_method,$cm)) {
+                    $fn = self::$_fn[$name];
+                    is_callable($fn) && $fn();
+                }
+            }         
+        });
     }    
 
     public static function init(callable $fn) {
@@ -290,9 +293,8 @@ after:
     public static function getException($ac) {
         return isset(self::$_exception[$ac]) ? self::$_exception[$ac] : false;
     }
-
-    private static function __matchControllerMethod($regular) {
-
+    
+    private static function requestUri() {
         if(self::$_env['cli']){
 
            if(empty($_SERVER['argv'])){
@@ -309,7 +311,7 @@ after:
             self::$_env['request_uri'] = isset($_SERVER['REQUEST_URI']) && !empty($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
         
         }
-
+        
         $params = [];
         $args = parse_url(self::$_env['request_uri']);
         if (isset($args['query'])) {
@@ -320,8 +322,11 @@ after:
         if($_ru) self::$_env['request_uri'] = $_ru;
 
         $_GET = &$params;
-
         
+    }
+
+    private static function __matchControllerMethod($regular) {
+
         if($regular == self::$_env['request_uri']) {
             return [];
         }
@@ -333,9 +338,44 @@ after:
 
         return false;
     }
+    
+    private static function autoLoadController($class_method) {
+        
+        self::getFilter($class_method);
+        
+        list($class,$method) = explode('->',$class_method,2);
+        $controller_dir = self::getEnv('controller_dir');
+
+        $class_file = $controller_dir.'/'.$class.'.php';
+
+        if(!self::__include($class_file,true)){
+            return false;
+        }
+
+        $class = $controller_dir.'\\'.$class;
+        $class = str_replace("/","\\",$class);
+        if(class_exists($class)) {  
+            $obj = new $class(); 
+        }else{
+            return false;
+        }
+        
+        if(!method_exists($obj,$method)) {
+            return false;
+        }
+
+        if($content = call_user_func_array(array($obj,$method),[])){
+            print($content);
+        }
+       
+        return true;
+    }
 
     public static function loadController($class_method,$param) {
-        $data = @explode('->',$class_method,2);
+        
+        self::getFilter($class_method);
+        
+        $data = explode('->',$class_method,2);
         if(count($data) > 1){
             list($class,$method) = $data;
             $controller_dir = self::getEnv('controller_dir');
@@ -352,6 +392,10 @@ after:
                 $obj = new $class(); 
             }else{
                 throw new KoalaException("Class $class not found");
+            }
+            
+            if(!method_exists($obj,$method)) {
+                throw new KoalaException("method $method not found");
             }
 
             if($content = call_user_func_array(array($obj,$method),$param)){
@@ -674,7 +718,7 @@ class Html{
         if(Koala::getEnv('csrf')) {
             $token = self::hash();
 
-            koala::$app->cookie()->set('__csrf__',$token);
+            koala::$app->cookie->set('__csrf__',$token);
 
             return sprintf('<input type="hidden" name="__csrf__" value="%s" />',$token);
         }
@@ -690,7 +734,7 @@ class Config{
 
         $filename = $filename . '.php';
         
-        if(!koala::$app->help()->fileExists($filename)){
+        if(!koala::$app->help->fileExists($filename)){
             throw new KoalaException("Configuration file does not exist:$filename");
         }
 
@@ -742,7 +786,7 @@ class View{
 
         $_f = $this->_view_dir . '/' .$tpl.'.tpl.php';
 
-        if(!koala::$app->help()->fileExists($_f)){
+        if(!koala::$app->help->fileExists($_f)){
             throw new KoalaException(sprintf("Can't find view file %s",$_f));
         }
 
@@ -756,7 +800,7 @@ class View{
             
             $_f = $this->_view_dir . '/' .$this->_opt['layout'].'.layout.php';
 
-            if(!koala::$app->help()->fileExists($_f)){
+            if(!koala::$app->help->fileExists($_f)){
                 throw new KoalaException(sprintf("Can't find view file %s",$_f));
             }
             
@@ -777,7 +821,7 @@ class View{
 
         $_f = $this->_view_dir . '/' .$tpl.'.tpl.php';
 
-        if(!koala::$app->help()->fileExists($_f)){
+        if(!koala::$app->help->fileExists($_f)){
             throw new KoalaException(sprintf("Can't find view file %s",$_f));
         }
 
@@ -799,29 +843,7 @@ class View{
 
     public function widget($class_method,Array $param=[]) {
 
-        if(strpos($class_method,">>") || strpos($class_method,"->")){
-
-            if(strpos($class_method,">>")) {
-                list($filter,$class_method) = explode('>>', $class_method,2);
-
-            }else if(strpos($class_method,"->")){
-                $filter = $class_method;
-                $class_method = '';
-            }
-
-            if($class_method) {
-                $_fn = koala::getFilter($filter);
-                if(!is_callable($_fn)){
-                    throw new KoalaException(sprintf("Can not find the filter : %s",$filter));
-                }
-
-                if($_fn() === false){
-                    throw new KoalaException(sprintf("Has been blocked by filter : %s",$filter));
-                }
-            }else{
-                $class_method = $filter;
-            }
-            
+        if(strpos($class_method,"->")){
             koala::loadController($class_method,$param);
         }else{
             $this->render($class_method,$param);
@@ -858,7 +880,7 @@ class Request {
 
     public function validateFilePath($path) {
         $this->validOn = true;
-        if(!koala::$app->help()->fileExists($path)){
+        if(!koala::$app->help->fileExists($path)){
             throw new KoalaException("validate file is not found : $path");
         }
         require $path;
@@ -887,7 +909,7 @@ class Request {
     public function checkCsrf() {
 
         if(Koala::getEnv('csrf')){
-            $token = koala::$app->cookie()->get('__csrf__');
+            $token = koala::$app->cookie->get('__csrf__');
 
             $post = $this->post([
                 '__csrf__' => ''
@@ -1449,8 +1471,8 @@ class Database {
 
 trait dbServer {
     public function db($server='db') {
-        return Koala::$app->Database()->$server;
-    }   
+        return Koala::$app->Database->$server;
+    }
 }
 
 class T extends Mysql { 
