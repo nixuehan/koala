@@ -805,28 +805,28 @@ $this->db('readable')->table('forms')
 遇到复杂的SQL 就不适合ORM了。 ps: 记得需要自己防sql注入
 
 ```php
-Koala::$app->Database->writable->query("INSERT INTO forms VALUES('a','b')");
-Koala::$app->Database->writable->insert_id();
+Koala::$app->Database->db('writable')->query("INSERT INTO forms VALUES('a','b')");
+Koala::$app->Database->db('writable')->insert_id();
 ```
 
 ```php
-Koala::$app->Database->writable->query("DELETE FROM forms");
+Koala::$app->Database->db('writable')->query("DELETE FROM forms");
 ```
 
 ```php
-Koala::$app->Database->writable->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
+Koala::$app->Database->db('writable')->fetchAll("SELECT * FROM forms WHERE access_token = 'adfawer'");
 ```
 
 ```php
-Koala::$app->Database->writable->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
+Koala::$app->Database->db('writable')->getOne("SELECT * FROM forms WHERE access_token = 'adfawer'");
 ```
 
-遇到更复杂的需求，需要更底层一点的mysqli 方法。比如 事务
+遇到更复杂的需求，需要更底层一点的PDO 方法。比如 事务
 
 ```php
 $db = $this->db()->resource();
-$db->autocommit(false);
-$db->query("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
+$db->beginTransaction();
+$db->exec("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
 $db->commit();
 ```
 
