@@ -25,7 +25,7 @@ set_exception_handler(function($e){
 class C { }
 
 class KoalaException extends \Exception{}
-class MysqlException extends \Exception{}
+class MysqlException extends \PDOException{}
 
 function call($fn) {
     return $fn();
@@ -113,7 +113,7 @@ class App{
     private static $_O = NULL;
 
     public function __toString() {
-        return 'App class';
+        return 'koala manual https://github.com/nixuehan/koala';
     }
 
     public static function object() {
@@ -154,10 +154,10 @@ class Koala{
     }
 
     public static  function go(Array $config=[]) {
-
+        
         self::$app = App::object();
 
-        self::$_env['root_dir'] = !isset($config['root_dir']) ? '' : $config['root_dir'];
+        self::$_env['root_dir'] = !isset($config['root_dir']) ? __DIR__ : $config['root_dir'];
         self::$_env['controller_dir'] = !isset($config['controller_dir']) ? 'controller' : $config['controller_dir'];
         self::$_env['cli'] = PHP_SAPI === 'cli' ? true : false;
         self::$_env['request_method'] = isset($_SERVER['REQUEST_METHOD']) && !empty($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
@@ -166,19 +166,20 @@ class Koala{
         self::$_env['cache'] = isset($config['cache']) ? $config['cache'] : 'cache';
         self::$_env['log'] = isset($config['log']) ? $config['log'] : '';
         self::$_env['csrf'] = isset($config['csrf']) ? $config['csrf'] : false;
+        self::$_env['timezone'] = isset($config['timezone']) ? $config['timezone'] : 'Asia/Shanghai';
+        self::$_env['charset'] = isset($config['charset']) ? $config['charset'] : 'utf-8';
 
-        self::requestUri();
-        
-        $_fn = koala::getInit();
-        if($_fn) $_fn();
-        
-        
-        date_default_timezone_set('Asia/Shanghai');
-        header("Content-Type: text/html; charset=utf-8");
+        date_default_timezone_set(self::$_env['timezone']);
+        header("Content-Type: text/html; charset=".self::$_env['charset']);
 
         if(self::$_env['cli'] && self::$_env['root_dir']) {
             set_include_path(get_include_path() . PATH_SEPARATOR . self::$_env['root_dir']);
         }
+        
+        self::requestUri();
+        
+        $_fn = koala::getInit();
+        if($_fn) $_fn();
 
         unset($_REQUEST);
 
@@ -1098,41 +1099,67 @@ class Cache {
     }
 }
 
-class Mysql {
-
-    private $db = null;
+class DB {
     public $debug = false;
+    private $_db = null;
+    private $_orm = null;
+    private $_params = [];
     protected $tableName = ''; //表名
     protected $_where = '';
     protected $_raw = '';
-    private $_params = [];
-
     private $var = '';
-
-    public function __construct($params) {
+    
+    public function __construct(Array $params) {
         $this->_params = $params;
-        $this->db = $this->getConnection($this->_params);
+        $dsn = sprintf("mysql:host=%s;dbname=%s;port=%d;charset=%s", $params['host'],$params['database'],3306,$params['charset']);
+        $this->_db = new \PDO($dsn, $params['user'], $params['passwd']);
+        $this->_db->setAttribute(\PDO::ATTR_ERRMODE,\PDO::ERRMODE_EXCEPTION);
+        $this->_db->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
     }
-
-    public function resource() {
-        if(is_object($this->db)) {
-            return $this->db;
+    
+    private function __errorInfo($stmt) {
+        return implode('|' , $stmt->errorInfo());
+    }
+    
+    public function rs() {
+        return $this->_db;
+    }
+    
+    public function query($sql,Array $parameters = []) {
+        $stmt = $this->_db->prepare($sql);
+        $result = $stmt->execute($parameters);
+        if(!$result){
+            throw new MysqlException($this->__errorInfo($stmt));
         }
-
-        throw new MysqlException('Database connection does not exist');
+        return $stmt;
     }
-
-    public function getConnection(Array $opt) {
-        $_db = @new \mysqli($opt['host'],$opt['user'],$opt['passwd']);
-        if (mysqli_connect_errno()) {
-            throw new MysqlException('database connect error!');
-        }
-        
-        $_db->set_charset($opt['charset']);
-        $_db->select_db($opt['database']); 
-        return $_db;
+    
+    public function fetchAll($sql) {
+        $stmt = $this->query($sql);
+        $result = $stmt->fetchAll();
+        $stmt->closeCursor();
+        return $result;
     }
-
+    
+    public function num_rows($sql) {
+        $stmt = $this->query($sql);
+        $result = $stmt->fetchColumn();
+        $stmt->closeCursor();
+        return $result;
+    }
+    
+    public function getOne($sql) {
+        $stmt = $this->query($sql . ' LIMIT 1');
+        $result = $stmt->fetch();
+        $stmt->closeCursor();
+        return $result;
+    }
+    
+    public function insert_id() {
+        return $this->_db->lastInsertId();
+    }
+    
+    
     public function field(Array $data) {
         $this->data =  $data;
         return $this;
@@ -1150,60 +1177,6 @@ class Mysql {
     public function _string() {
         return isset($this->data[$this->var]) ? $this->data[$this->var]  : '';
     }
-    
-    public function selectDb($_db){
-        $this->resource()->select_db($_db);
-    }
-
-    public function query($sql) {
-
-        if(!($result = $this->resource()->query($sql))){
-            throw new MysqlException($this->resource()->error);
-        }
-        return $result;
-    }
-
-    public function affected_rows() {
-        return $this->resource()->affected_rows;
-    }
-
-    public function num_rows($sql) {
-        $result = $this->query($sql);   
-        return $result->num_rows;
-    }
-
-    public function fetch_assoc($resource) {
-        return $resource->fetch_assoc();
-    }
-
-    public function fetchAll($sql){
-        $result = array();
-        $rs = $this->query($sql);
-        while($row = $rs->fetch_assoc()){
-            $result[] = $row;
-        }
-        return $result;
-    }
-
-    public function getOne($sql) {
-        $rs = $this->query($sql . ' LIMIT 1');
-        $row = $rs->fetch_assoc();
-        return $row;
-    }
-    
-    public function getFirstField($sql) {
-        $rs = $this->query($sql);
-        $row = $rs->fetch_row();
-        return $row[0];
-    }
-
-    public function insert_id() {
-        return $this->resource()->insert_id;
-    }
-
-    public function close() {
-        $this->db->close();
-    }
 
     public function table($tableName) {
         $this->tableName = $tableName;
@@ -1212,12 +1185,6 @@ class Mysql {
 
     public function getTable() {
         return $this->tableName;
-    }
-
-    //重新选择数据库
-    public function change($dbName) {
-        $this->selectDb($dbName);
-        return $this;
     }
 
     public function insert(Array $data) {
@@ -1449,40 +1416,31 @@ class Mysql {
     }
 }
 
+
 class Database {
 
-    private static $_o = [];
-
-    public function getConnection($db,callable $func){
-        if(!isset(self::$_o[$db])){
-            self::$_o[$db] = $func();
+   private static $_o = [];
+   
+   public function instance($var,callable $func) {
+        if(!isset(self::$_o[$var])){
+            self::$_o[$var] = $func();
         }
-        return self::$_o[$db];
+        return self::$_o[$var];  
     }
 
-    public function __get($db) {
+   public function db($var = 'default') {
 
-        if(!isset(self::$_o[$db])){
-            throw new KoalaException("No database connection:$db");
+        if(!isset(self::$_o[$var])){
+            throw new KoalaException("No database connection:$var");
         }
-        return self::$_o[$db];
+        return self::$_o[$var];
     }
 }
 
-trait dbServer {
-    public function db($server='db') {
-        return Koala::$app->Database->$server;
-    }
+class T extends Database {
+    public function __construct() { }
 }
 
-class T extends Mysql { 
+class M extends Database {
     public function __construct() { }
-
-    use dbServer;
-}
-
-class M extends Mysql {
-    public function __construct() { }
-
-    use dbServer;
 }

@@ -645,9 +645,9 @@ Koala::finish(function(){
 
 ```php
 Koala::init(function(){
-    Koala::$app->Database->getConnection('db',function(){
+    Koala::$app->Database->instance('default',function(){
         $opt = Koala::$app->Config()->get('mysql');
-        return new Mysql([
+        return new DB([
             'host'      => $opt['host'],
             'user'      => $opt['user'],
             'passwd'    => $opt['passwd'],
@@ -664,9 +664,9 @@ Koala::init(function(){
 
 ```php
 Koala::init(function(){
-    Koala::$app->Database->getConnection('db',function(){
+    Koala::$app->Database->instance('db',function(){
         $opt = Koala::$app->Config()->get('mysql');
-        return new Mysql([
+        return new DB([
             'host'      => $opt['host'],
             'user'      => $opt['user'],
             'passwd'    => $opt['passwd'],
@@ -696,6 +696,15 @@ class Member extends \Module{
 Koala::$app->O
            ->module('member')
            ->infoByMemberid();
+```
+
+模块外操作数据库
+```
+Kooala::$app->Database->db()
+                      ->table("stb_users")
+                      ->asc('uid')
+                      ->limit(10)
+                      ->find()
 ```
 
 内置的ORM 在 module 里各种操作展示
@@ -815,7 +824,7 @@ Koala::$app->Database->writable->getOne("SELECT * FROM forms WHERE access_token 
 遇到更复杂的需求，需要更底层一点的mysqli 方法。比如 事务
 
 ```php
-$db = $this->db('read')->resource();
+$db = $this->db()->resource();
 $db->autocommit(false);
 $db->query("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
 $db->commit();
