@@ -824,7 +824,7 @@ Koala::$app->Database->db('writable')->getOne("SELECT * FROM forms WHERE access_
 遇到更复杂的需求，需要更底层一点的PDO 方法。比如 事务
 
 ```php
-$db = $this->db()->resource();
+$db = $this->db()->rs();
 $db->beginTransaction();
 $db->exec("INSERT INTO Language VALUES ('DEU', 'Bavarian', 'F', 11.2)");
 $db->commit();
