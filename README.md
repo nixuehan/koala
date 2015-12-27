@@ -512,8 +512,7 @@ test la
 
 组件
 ```php
-//signin::: 意思是，先经过 signin 过滤器再 执行后面的模块
-Koala::$app->View->widget('signin>>main->profile'); 
+Koala::$app->View->widget('main->profile'); 
 ```
 
 csrf防御
