@@ -204,6 +204,8 @@ throw new \NotFoundException("找不到用户");
 ```php
 var_dump(Koala::$app); //打印下，其实他是个对象
 
+Koala::$app->G //全局容器
+
 Koala::$app->O //实例化容器类 class O 
 
 Koala::$app->Response //实例化输出类  class Response
@@ -267,14 +269,14 @@ $sms = koala::$app->O->instance('utils/sms');
 Container 容器也提供了一个便捷实例化模块类,表模块类的方法
 
 ```php
-$member = koala::$app->O->module("member");
+$member = Koala::$app->Module->business()
 $member->signin('asdfasdf');
 ```
 
 当然还有表模块
 
 ```php
-$member = koala::$app->O->table("member");
+$member = koala::$app->O->table()->business();
 $member->signin('asdfasdf');
 ```
 

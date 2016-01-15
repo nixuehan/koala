@@ -1,6 +1,9 @@
 <?php
 namespace koala;
 
+define('YES',1);
+define('NO',0);
+
 class X{
     const author = '逆雪寒';
     const version = '1.0.1';
@@ -10,13 +13,17 @@ class X{
 set_exception_handler(function($e){
     $className = get_class($e);
 
-    if($fn = Koala::getException($className)){
+    if($fn = Koala::getErrorhandler('DefaultException')){
+        $fn();exit;
+    }
+
+    if($fn = Koala::getErrorhandler($className)){
         $fn();exit;
     }
 
     $msg = sprintf('<h2>Koala Error</h2>'.
             '<pre>%s <br/>%s</pre>',
-            $e->getMessage(),
+            $e->getMessage() ? $e->getMessage() : 'No error message',
             $e->getTraceAsString()
         );
     Koala::$app->Response->halt(500,$msg);
@@ -55,7 +62,7 @@ class O{
         return self::$_object[$className];        
     }
 
-    public function instance($_class) {
+    public function instance($_class,Array $args=[]) {
 
         if(!isset(self::$_object[$_class])) {
 
@@ -66,30 +73,46 @@ class O{
                 }
                 include $_class . '.php';
                 $cls = substr(strrchr($_class, '/'), 1);
-                self::$_object[$_class] = new $cls;
+
+                $ref = new \ReflectionClass($cls);
+                self::$_object[$_class] = $ref->newInstanceArgs($args);
             }else{
-                self::$_object[$_class] = new $_class;
+                $ref = new \ReflectionClass($_class);
+                self::$_object[$_class] = $ref->newInstanceArgs($args);
             }
         }
 
         return self::$_object[$_class];
     }
+}
 
-    public function module($_class) {
+class Table {
+
+    private static $_object = [];
+
+    public function __call($_class, Array $args) {
+         if(!isset(self::$_object[$_class])) {
+            $_class = '\table\\' . $_class;
+            $ref = new \ReflectionClass($_class);
+            self::$_object[$_class] = $ref->newInstanceArgs($args);
+        }
+        return self::$_object[$_class];       
+    }
+}
+
+class Module {
+
+    private static $_object = [];
+
+    public function __call($_class, Array $args) {
         if(!isset(self::$_object[$_class])) {
             $_class = "\module\\" . $_class;
-            self::$_object[$_class] = new $_class;
-        }
-        return self::$_object[$_class];
-    }
 
-    public function table($_class) {
-        if(!isset(self::$_object[$_class])) {
-            $_class = '\table\\' . $_class;
-            self::$_object[$_class] = new $_class;
+            $ref = new \ReflectionClass($_class);
+            self::$_object[$_class] = $ref->newInstanceArgs($args);
         }
         return self::$_object[$_class];
-    }
+    }  
 }
 
 class G {
@@ -164,7 +187,6 @@ class Koala{
         self::$_env['view_dir'] = isset($config['view_dir']) ? $config['view_dir'] : 'views';
         self::$_env['mode'] = isset($config['mode']) ? $config['mode'] : 'dev';
         self::$_env['cache'] = isset($config['cache']) ? $config['cache'] : 'cache';
-        self::$_env['log'] = isset($config['log']) ? $config['log'] : '';
         self::$_env['csrf'] = isset($config['csrf']) ? $config['csrf'] : false;
         self::$_env['timezone'] = isset($config['timezone']) ? $config['timezone'] : 'Asia/Shanghai';
         self::$_env['charset'] = isset($config['charset']) ? $config['charset'] : 'utf-8';
@@ -187,10 +209,13 @@ class Koala{
         
         $request_uri = trim(self::$_env['request_uri'],"/");
         
-        if(strpos($request_uri,"/")){
+
+        if($request_uri == ""){
+            $class = "index" . "->" . "index";
+        }else if(strpos($request_uri,"/")){
             $class = substr_replace($request_uri,"->",strrpos($request_uri,"/"),1);
         }else{
-            $class = $request_uri . "->" . "index";
+            $class = "index" . "->" . $request_uri;
         }
         
         if(self::autoLoadController($class)){
@@ -287,11 +312,11 @@ after:
         return is_callable(self::$_anchor_after) ? self::$_anchor_after : false;
     }    
 
-    public static function exception($ac) {
+    public static function errorhandler($ac) {
         self::$_exception = $ac;
     }
 
-    public static function getException($ac) {
+    public static function getErrorhandler($ac) {
         return isset(self::$_exception[$ac]) ? self::$_exception[$ac] : false;
     }
     
@@ -310,17 +335,19 @@ after:
         }else{
 
             self::$_env['request_uri'] = isset($_SERVER['REQUEST_URI']) && !empty($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
-        
+            
         }
         
         $params = [];
         $args = parse_url(self::$_env['request_uri']);
+
         if (isset($args['query'])) {
             parse_str($args['query'], $params);
         }
 
         $_ru = strstr(self::$_env['request_uri'],'?',true);
         if($_ru) self::$_env['request_uri'] = $_ru;
+
 
         $_GET = &$params;
         
@@ -433,16 +460,9 @@ class Help {
 //日志
 class Log {
 
-    private $path = 'log/koala.log.php';
-    private $tail = '.log.php';
-
     public function path($file) {
 
-        if(!($log = koala::getenv('log'))){
-            return false;
-        }
-
-        $this->path = $log . '/' . $file . $this->tail;
+        $this->path = $file;
         return $this;
     }
 
@@ -459,14 +479,9 @@ class Log {
         return $front . PHP_EOL . $content . PHP_EOL;  
     }
 
-    public function write($content) {
+    public function info($content) {
         $content = $this->init($content);
         file_put_contents($this->path, $content,FILE_APPEND | LOCK_EX);
-    }
-
-    public function put($content) {
-        $content = $this->init($content);
-        file_put_contents($this->path, $content,LOCK_EX);
     }
 }
 
@@ -696,7 +711,7 @@ class Response {
 
     public function redirect($url,$param=[]) {
 
-        if(strpos($class_method,"http")) {
+        if(strpos($url,"http") !== false) {
             $this->status(303)
                          ->header('Location', $url)
                          ->write($url)
@@ -1426,7 +1441,7 @@ class Database {
             self::$_o[$var] = $func();
         }
         return self::$_o[$var];  
-    }
+   }
 
    public function db($var = 'default') {
 
@@ -1434,7 +1449,7 @@ class Database {
             throw new KoalaException("No database connection:$var");
         }
         return self::$_o[$var];
-    }
+   }
 }
 
 class T extends Database {
