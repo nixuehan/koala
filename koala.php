@@ -1,14 +1,14 @@
 <?php
 namespace koala;
 
-define('YES',1);
-define('NO',0);
-
 class X{
     const author = '逆雪寒';
     const version = '1.0.1';
     const license = "MIT";
 }
+
+define('YES',1);
+define('NO',0);
 
 set_exception_handler(function($e){
     $className = get_class($e);
@@ -23,7 +23,7 @@ set_exception_handler(function($e){
 
     $msg = sprintf('<h2>Koala Error</h2>'.
             '<pre>%s <br/>%s</pre>',
-            $e->getMessage() ? $e->getMessage() : 'No error message',
+            $e->getMessage(),
             $e->getTraceAsString()
         );
     Koala::$app->Response->halt(500,$msg);
@@ -84,27 +84,8 @@ class O{
 
         return self::$_object[$_class];
     }
-}
 
-class Table {
-
-    private static $_object = [];
-
-    public function __call($_class, Array $args) {
-         if(!isset(self::$_object[$_class])) {
-            $_class = '\table\\' . $_class;
-            $ref = new \ReflectionClass($_class);
-            self::$_object[$_class] = $ref->newInstanceArgs($args);
-        }
-        return self::$_object[$_class];       
-    }
-}
-
-class Module {
-
-    private static $_object = [];
-
-    public function __call($_class, Array $args) {
+    public function module($_class,Array $args=[]) {
         if(!isset(self::$_object[$_class])) {
             $_class = "\module\\" . $_class;
 
@@ -112,7 +93,25 @@ class Module {
             self::$_object[$_class] = $ref->newInstanceArgs($args);
         }
         return self::$_object[$_class];
-    }  
+    }
+
+    public function functions($_class,Array $args=[]) {
+        if(!isset(self::$_object[$_class])) {
+            $_class = '\functions\\' . $_class;
+            $ref = new \ReflectionClass($_class);
+            self::$_object[$_class] = $ref->newInstanceArgs($args);
+        }
+        return self::$_object[$_class];
+    }
+
+    public function table($_class,Array $args=[]) {
+        if(!isset(self::$_object[$_class])) {
+            $_class = '\table\\' . $_class;
+            $ref = new \ReflectionClass($_class);
+            self::$_object[$_class] = $ref->newInstanceArgs($args);
+        }
+        return self::$_object[$_class];
+    }
 }
 
 class G {
@@ -173,7 +172,23 @@ class Koala{
     private function __clone() {}
 
     public static  function route(Array $rule) {
-        self::$_route = self::$_route + $rule;
+        $_rule = [];
+        foreach($rule as $k => $v) {
+            if(is_array($v)){
+                if(array_key_exists($k,self::$_filter)){
+
+                    self::$_fn[$k] = self::$_filter[$k];
+                    self::$_filter[$k] = $v;
+
+                }
+
+                $_rule = $_rule + $v;
+            }else{
+                $_rule[$k] = $v;
+            }
+        }
+
+        self::$_route = self::$_route + $_rule;
     }
 
     public static  function go(Array $config=[]) {
@@ -200,16 +215,24 @@ class Koala{
         
         self::requestUri();
         
-        $_fn = koala::getInit();
-        if($_fn) $_fn();
-
         unset($_REQUEST);
 
         spl_autoload_register(array(__CLASS__,'classAutoLoadPath'));
         
+        $_fn = koala::getInit();
+        if($_fn) $_fn();
+
+        foreach(self::$_route as $pattern => $class_method){
+            $param = self::__matchControllerMethod($pattern);
+            if(is_array($param)){
+
+                self::loadController($class_method,$param);
+                goto after;
+            } 
+        }
+
         $request_uri = trim(self::$_env['request_uri'],"/");
         
-
         if($request_uri == ""){
             $class = "index" . "->" . "index";
         }else if(strpos($request_uri,"/")){
@@ -217,18 +240,9 @@ class Koala{
         }else{
             $class = "index" . "->" . $request_uri;
         }
-        
+
         if(self::autoLoadController($class)){
             goto after;
-        }
-        
-        //filter
-        foreach(self::$_route as $pattern => $class_method){
-            $param = self::__matchControllerMethod($pattern);
-            if(is_array($param)){
-                self::loadController($class_method,$param);
-                goto after;
-            } 
         }
 
         throw new KoalaException('Can not find the controller');
@@ -247,11 +261,10 @@ after:
 
         $file = strtolower($class) . '.php';
     
-        if(!self::$app->help->fileExists($file)) {
-            throw new KoalaException("Class  is not found : $class");
-        }
-
-        require_once($file);
+        if(self::$app->help->fileExists($file)) {
+            require_once($file);
+            //throw new KoalaException("Class  is not found : $class");
+        }        
     }
 
     public static function __include($file,$once=false) {
@@ -280,21 +293,34 @@ after:
         return isset($_SERVER[$var]) && !empty($_SERVER[$var]) ? $_SERVER[$var] : $default;
     }
 
-    public static function filter($name,Array $fr,callable $fn) {
+    public static function filter($name,$fr,$fn = '') {
         self::$_filter[$name] = $fr;
         self::$_fn[$name] = $fn;
     }
 
     public static function getFilter($class_method) {
+        //全局过滤器
+        if(!self::getEnv('cli') && isset(self::$_filter['global'])){
+            $fn = self::$_filter['global'];
+            is_callable($fn) && $fn();
+        }
+
         array_walk(self::$_filter,function($clme,$name) use ($class_method){
             foreach($clme as $cm){
-                if(FALSE !== strpos($class_method,$cm)) {
-                    $fn = self::$_fn[$name];
-                    is_callable($fn) && $fn();
+                if($cm[strlen($cm)-1] == '>') {
+                    if(stripos($class_method,$cm) === 0) {
+                        $fn = self::$_fn[$name];
+                        is_callable($fn) && $fn();
+                    }     
+                }else{
+                    if($class_method == $cm) {
+                        $fn = self::$_fn[$name];
+                        is_callable($fn) && $fn();
+                    }                   
                 }
             }         
         });
-    }    
+    }
 
     public static function init(callable $fn) {
         self::$_anchor_before = $fn;
@@ -368,10 +394,14 @@ after:
     }
     
     private static function autoLoadController($class_method) {
-        
-        self::getFilter($class_method);
-        
+ 
         list($class,$method) = explode('->',$class_method,2);
+
+        self::setEnv('controller',$class,'index');
+        self::setEnv('method',$method,'index');
+
+        self::getFilter($class_method);
+
         $controller_dir = self::getEnv('controller_dir');
 
         $class_file = $controller_dir.'/'.$class.'.php';
@@ -400,15 +430,21 @@ after:
     }
 
     public static function loadController($class_method,$param) {
-        
-        self::getFilter($class_method);
-        
+
         $data = explode('->',$class_method,2);
         if(count($data) > 1){
             list($class,$method) = $data;
+
+            self::setEnv('controller',$class,'index');
+            self::setEnv('method',$method,'index');
+
+            self::getFilter($class_method);
+
+
             $controller_dir = self::getEnv('controller_dir');
 
             $class_file = $controller_dir.'/'.$class.'.php';
+
 
             if(!self::__include($class_file,true)){
                 throw new KoalaException("Class file is not found : $class_file");
@@ -426,10 +462,18 @@ after:
                 throw new KoalaException("method $method not found");
             }
 
-            if($content = call_user_func_array(array($obj,$method),$param)){
+            $pm = [];
+            foreach($param as $k => $v){
+                if(is_int($k)){
+                    $pm[] = $v;
+                }
+            }
+            
+            if($content = call_user_func_array(array($obj,$method),$pm)){
                 print($content);
             }
         }else{
+            self::getFilter($class_method);
             throw new KoalaException("Controller exception");
         }
     }
@@ -702,6 +746,9 @@ class Response {
     public function json($data, $code = 200, $encode = true) {
 
         $json = $encode ? json_encode($data) : $data;
+        //fix  json php to java
+        $json = str_replace(['[]','{}','""'],['null','null','null'],$json);
+
         $this->status($code)
              ->header('Content-Type', 'application/json')
              ->write($json)
@@ -754,7 +801,7 @@ class Config{
             throw new KoalaException("Configuration file does not exist:$filename");
         }
 
-        $opt = include_once($filename);
+        $opt = Koala::__include($filename,true);
 
         if(is_array($opt)){
             $this->_config = array_merge($this->_config,$opt);
@@ -787,6 +834,11 @@ class View{
         foreach($options as $k => $v){
             $this->_opt[$k] = $v;
         }
+    }
+
+    public function main($layout) {
+        $this->_opt = ['layout' => $layout];
+        return $this;
     }
 
     public function layout($tpl,$T=[]) {
@@ -1122,29 +1174,69 @@ class DB {
     protected $tableName = ''; //表名
     protected $_where = '';
     protected $_raw = '';
+    private $_original = '';
     private $var = '';
     
     public function __construct(Array $params) {
         $this->_params = $params;
-        $dsn = sprintf("mysql:host=%s;dbname=%s;port=%d;charset=%s", $params['host'],$params['database'],3306,$params['charset']);
-        $this->_db = new \PDO($dsn, $params['user'], $params['passwd']);
-        $this->_db->setAttribute(\PDO::ATTR_ERRMODE,\PDO::ERRMODE_EXCEPTION);
-        $this->_db->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
+        $this->connect($params);
+    }
+
+    private function connect(Array $params) {
+        try{
+            $dsn = sprintf("mysql:host=%s;dbname=%s;port=%d;charset=%s", $params['host'],$params['database'],3306,$params['charset']);
+            $this->_db = new \PDO($dsn, $params['user'], $params['passwd']);
+            $this->_db->setAttribute(\PDO::ATTR_ERRMODE,\PDO::ERRMODE_EXCEPTION);
+            $this->_db->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return false;
+        }
     }
     
     private function __errorInfo($stmt) {
         return implode('|' , $stmt->errorInfo());
     }
-    
-    public function rs() {
-        return $this->_db;
+
+    public function currentDb() {
+        $stmt = $this->_db->query("select database()");
+        return $stmt->fetchColumn();
+    }
+
+    //数据库切换
+    public function changeDb($dbname) {
+
+        $this->_original = $this->currentDb();
+        $this->query("use ".$dbname);
+    }
+
+    public function undoDb() {
+        $this->query("use ".$this->_original);
     }
     
+    public function base() {
+        return $this->_db;
+    }
+
+    public function transaction(callable $fn) {
+        $this->_db->beginTransaction();
+        $result = $fn();
+
+        if(!$result){
+            $this->_db->rollBack();
+            return false;
+        }
+        return $this->_db->commit();
+    }
+
     public function query($sql,Array $parameters = []) {
         $stmt = $this->_db->prepare($sql);
-        $result = $stmt->execute($parameters);
-        if(!$result){
-            throw new MysqlException($this->__errorInfo($stmt));
+
+        if(!$stmt->execute($parameters)){
+            //判断超时重新连接数据库
+            if(!$this->connect($this->_params)){
+                throw new PDOException();
+            }
+            $stmt->execute($parameters);
         }
         return $stmt;
     }
@@ -1158,7 +1250,7 @@ class DB {
     
     public function num_rows($sql) {
         $stmt = $this->query($sql);
-        $result = $stmt->fetchColumn();
+        $result = $stmt->rowCount();
         $stmt->closeCursor();
         return $result;
     }
@@ -1245,16 +1337,43 @@ class DB {
         return $this;
     }
 
+    public function in($field,Array $values) {
+
+        $val = '';
+        foreach($values as $value) {
+            $val .= "'".$value."',";
+        }
+        $val = substr($val,0,-1);
+
+        $this->_where = ' WHERE '.$field . " IN (".$val.")";
+        return $this;
+    }
+
     public function desc() {
         $arr = func_get_args();
-        $this->_where = $this->_where . ' ORDER BY ' . $this->__getField($arr) . ' DESC';
+
+        $str = implode(',',array_map(function($k){
+            return $k . ' DESC';
+        },$arr));
+
+        $this->_where = $this->_where . ' ORDER BY ' . $str;
         return $this;      
     }
 
     public function asc() {
         $arr = func_get_args();
-        $this->_where = $this->_where . ' ORDER BY ' . $this->__getField($arr) . ' ASC';
+
+        $str = implode(',',array_map(function($k){
+            return $k . ' ASC';
+        },$arr));
+
+        $this->_where = $this->_where . ' ORDER BY ' . $str;
         return $this;  
+    }
+
+    public function for_update() {
+        $this->_where = $this->_where . ' FOR UPDATE';
+        return $this;       
     }
 
     public function group() {
@@ -1310,7 +1429,9 @@ class DB {
             print($sql);exit;
             $this->debug = false;
         }  
-        $row = $this->getFirstField($sql);
+
+        $stmt = $this->query($sql);
+        $row = $stmt->fetchColumn();
         $this->__clearWhere();  
         return $row;        
     }
@@ -1380,8 +1501,9 @@ class DB {
             $this->debug = false;
         }  
 
-        return $this->query($sql);
+        $result = $this->query($sql);
         $this->__clearWhere();
+        return $result;
     }
 
     private function __isThereWhere() {
@@ -1440,7 +1562,7 @@ class Database {
         if(!isset(self::$_o[$var])){
             self::$_o[$var] = $func();
         }
-        return self::$_o[$var];  
+        return self::$_o[$var];
    }
 
    public function db($var = 'default') {
